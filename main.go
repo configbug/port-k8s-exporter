@@ -8,10 +8,12 @@ import (
 	"github.com/port-labs/port-k8s-exporter/pkg/config"
 	"github.com/port-labs/port-k8s-exporter/pkg/defaults"
 	"github.com/port-labs/port-k8s-exporter/pkg/event_handler"
+	"github.com/port-labs/port-k8s-exporter/pkg/event_handler/webhook"
 	"github.com/port-labs/port-k8s-exporter/pkg/handlers"
 	"github.com/port-labs/port-k8s-exporter/pkg/k8s"
 	"github.com/port-labs/port-k8s-exporter/pkg/logger"
 	"github.com/port-labs/port-k8s-exporter/pkg/metrics"
+	"github.com/port-labs/port-k8s-exporter/pkg/port"
 	"github.com/port-labs/port-k8s-exporter/pkg/port/cli"
 )
 
@@ -21,6 +23,11 @@ func main() {
 	// Ensure logs are flushed before application exits
 	defer logger.Shutdown()
 	logger.Infow("Starting Port K8s Exporter", "version", Version)
+
+	// Validate configuration
+	if err := config.ValidateConfig(); err != nil {
+		logger.Fatalf("Configuration error: %s", err.Error())
+	}
 
 	k8sConfig := k8s.NewKubeConfig()
 	applicationConfig, err := config.NewConfiguration()
@@ -37,6 +44,52 @@ func main() {
 	if err != nil {
 		logger.Fatalf("Error building K8s client: %s", err.Error())
 	}
+
+	// Different initialization based on event listener type
+	if config.ApplicationConfig.EventListenerType == "WEBHOOK" {
+		runWebhookMode(applicationConfig, k8sClient)
+	} else {
+		runAPIMode(applicationConfig, k8sClient)
+	}
+}
+
+// runWebhookMode runs the exporter in webhook mode (no Port credentials needed)
+func runWebhookMode(applicationConfig *port.Config, k8sClient *k8s.Client) {
+	logger.Infow("Running in WEBHOOK mode",
+		"webhookURL", config.ApplicationConfig.WebhookURL,
+		"stateKey", applicationConfig.StateKey,
+		"clusterName", config.ApplicationConfig.ClusterName)
+
+	// Create webhook event listener
+	eventListener, err := webhook.NewEventListener(applicationConfig.StateKey)
+	if err != nil {
+		logger.Fatalf("Error creating webhook event listener: %s", err.Error())
+	}
+
+	// Setup resync interval if configured
+	if config.ApplicationConfig.ResyncInterval > 0 {
+		go func() {
+			ticker := time.NewTicker(time.Minute * time.Duration(config.ApplicationConfig.ResyncInterval))
+			defer ticker.Stop()
+			for range ticker.C {
+				handlers.RunResyncWebhook(applicationConfig, k8sClient, eventListener.GetClient())
+			}
+		}()
+	}
+
+	// Start the event listener
+	logger.Info("Starting webhook event listener")
+	err = eventListener.Run(func() {
+		handlers.RunResyncWebhook(applicationConfig, k8sClient, eventListener.GetClient())
+	})
+
+	if err != nil {
+		logger.Fatalf("Error running webhook event listener: %s", err.Error())
+	}
+}
+
+// runAPIMode runs the exporter in traditional API mode (POLLING/KAFKA)
+func runAPIMode(applicationConfig *port.Config, k8sClient *k8s.Client) {
 	portClient := cli.New(config.ApplicationConfig)
 
 	if err := defaults.InitIntegration(portClient, applicationConfig, Version, false); err != nil {

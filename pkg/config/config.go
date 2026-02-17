@@ -20,7 +20,7 @@ var ApplicationConfig = &ApplicationConfiguration{}
 func Init() {
 	_ = godotenv.Load()
 
-	NewString(&ApplicationConfig.EventListenerType, "event-listener-type", "POLLING", "Event listener type, can be either POLLING or KAFKA. Optional.")
+	NewString(&ApplicationConfig.EventListenerType, "event-listener-type", "POLLING", "Event listener type: POLLING, KAFKA, or WEBHOOK. Optional.")
 
 	// Kafka listener Configuration
 	NewString(&KafkaConfig.Brokers, "event-listener-brokers", "localhost:9092", "Kafka event listener brokers")
@@ -30,13 +30,19 @@ func Init() {
 	// Polling listener Configuration
 	NewUInt(&PollingListenerRate, "event-listener-polling-rate", 60, "Polling event listener polling rate")
 
+	// Webhook Configuration (NEW)
+	NewString(&ApplicationConfig.WebhookURL, "webhook-url", "", "Port webhook URL for ingest (e.g., https://ingest.getport.io/xxxxx). Required when event-listener-type is WEBHOOK.")
+	NewInt(&ApplicationConfig.WebhookBatchSize, "webhook-batch-size", 50, "Number of events to batch before sending to webhook. Optional.")
+	NewInt(&ApplicationConfig.WebhookBatchTimeout, "webhook-batch-timeout", 5, "Seconds to wait before flushing webhook batch. Optional.")
+	NewString(&ApplicationConfig.ClusterName, "cluster-name", "", "Kubernetes cluster name for identification. Optional.")
+
 	// Application Configuration
 	NewString(&ApplicationConfig.ConfigFilePath, "config", "config.yaml", "Path to Port K8s Exporter config file. Required.")
 	NewString(&ApplicationConfig.StateKey, "state-key", "my-k8s-exporter", "Port K8s Exporter state key id. Required.")
 	NewUInt(&ApplicationConfig.ResyncInterval, "resync-interval", 0, "The re-sync interval in minutes. Optional.")
 	NewString(&ApplicationConfig.PortBaseURL, "port-base-url", "https://api.getport.io", "Port base URL. Optional.")
-	NewString(&ApplicationConfig.PortClientId, "port-client-id", "", "Port client id. Required.")
-	NewString(&ApplicationConfig.PortClientSecret, "port-client-secret", "", "Port client secret. Required.")
+	NewString(&ApplicationConfig.PortClientId, "port-client-id", "", "Port client id. Required for POLLING/KAFKA modes.")
+	NewString(&ApplicationConfig.PortClientSecret, "port-client-secret", "", "Port client secret. Required for POLLING/KAFKA modes.")
 	NewBool(&ApplicationConfig.CreateDefaultResources, "create-default-resources", true, "Create default resources on installation. Optional.")
 	NewCreatePortResourcesOrigin(&ApplicationConfig.CreatePortResourcesOrigin, "create-default-resources-origin", "Port", "Create default resources origin on installation. Optional.")
 
@@ -68,6 +74,28 @@ func Init() {
 	NewStringSlice(&ApplicationConfig.AllowedEnvironmentVariablesInJQ, "allowed-environment-variables-in-jq", []string{"^PORT_", "CLUSTER_NAME"}, "Comma-separated list of environment variables that are allowed in jq queries when allow-all-environment-variables-in-jq is false. Optional.")
 
 	flag.Parse()
+}
+
+// ValidateConfig validates the configuration based on event listener type
+func ValidateConfig() error {
+	switch ApplicationConfig.EventListenerType {
+	case "WEBHOOK":
+		if ApplicationConfig.WebhookURL == "" {
+			return fmt.Errorf("webhook-url is required when event-listener-type is WEBHOOK")
+		}
+		// Port credentials are NOT required for WEBHOOK mode
+		logger.Infow("WEBHOOK mode: Port credentials not required")
+	case "POLLING", "KAFKA":
+		if ApplicationConfig.PortClientId == "" {
+			return fmt.Errorf("port-client-id is required when event-listener-type is %s", ApplicationConfig.EventListenerType)
+		}
+		if ApplicationConfig.PortClientSecret == "" {
+			return fmt.Errorf("port-client-secret is required when event-listener-type is %s", ApplicationConfig.EventListenerType)
+		}
+	default:
+		return fmt.Errorf("unknown event-listener-type: %s (must be POLLING, KAFKA, or WEBHOOK)", ApplicationConfig.EventListenerType)
+	}
+	return nil
 }
 
 func NewConfiguration() (*port.Config, error) {

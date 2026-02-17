@@ -44,4 +44,10 @@ type ApplicationConfiguration struct {
 	// JQ Configuration
 	AllowAllEnvironmentVariablesInJQ bool     `json:"allowAllEnvironmentVariablesInJQ,omitempty"`
 	AllowedEnvironmentVariablesInJQ  []string `json:"allowedEnvironmentVariablesInJQ,omitempty"`
+
+	// Webhook Configuration (NEW)
+	WebhookURL          string `json:"webhookUrl,omitempty"`
+	WebhookBatchSize    int    `json:"webhookBatchSize,omitempty"`
+	WebhookBatchTimeout int    `json:"webhookBatchTimeout,omitempty"` // in seconds
+	ClusterName         string `json:"clusterName,omitempty"`
 }

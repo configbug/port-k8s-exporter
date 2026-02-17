@@ -16,6 +16,7 @@ import (
 	"github.com/port-labs/port-k8s-exporter/pkg/port"
 	"github.com/port-labs/port-k8s-exporter/pkg/port/cli"
 	"github.com/port-labs/port-k8s-exporter/pkg/port/entity"
+	portwebhook "github.com/port-labs/port-k8s-exporter/pkg/port/webhook"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -52,6 +53,8 @@ type SyncResult struct {
 type Controller struct {
 	Resource             port.AggregatedResource
 	portClient           *cli.PortClient
+	webhookClient        *portwebhook.Client // NEW
+	useWebhook           bool                // NEW
 	integrationConfig    *port.IntegrationAppConfig
 	informer             cache.SharedIndexInformer
 	lister               cache.GenericLister
@@ -848,4 +851,69 @@ func calculateBulkSize(entities []port.EntityRequest, maxLength int, maxSizeInBy
 
 func (c *Controller) InitialSyncWorkqueueLen() int {
 	return c.initialSyncWorkqueue.Len()
+}
+
+// NewWebhookController creates a controller that sends events to webhook
+func NewWebhookController(resource port.AggregatedResource, informer informers.GenericInformer, webhookClient *portwebhook.Client) *Controller {
+	controller := &Controller{
+		Resource:             resource,
+		webhookClient:        webhookClient,
+		useWebhook:           true,
+		informer:             informer.Informer(),
+		lister:               informer.Lister(),
+		initialSyncWorkqueue: workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+		eventsWorkqueue:      workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+	}
+
+	controller.eventHandler, _ = controller.informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			controller.handleWebhookEvent(obj, CreateAction)
+		},
+		UpdateFunc: func(old interface{}, new interface{}) {
+			controller.handleWebhookEvent(new, UpdateAction)
+		},
+		DeleteFunc: func(obj interface{}) {
+			controller.handleWebhookEvent(obj, DeleteAction)
+		},
+	})
+
+	return controller
+}
+
+// handleWebhookEvent processes an event and sends it to the webhook
+func (c *Controller) handleWebhookEvent(obj interface{}, actionType EventActionType) {
+	unstructuredObj, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		// Handle deleted object wrapped in DeletedFinalStateUnknown
+		if deletedObj, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+			unstructuredObj, ok = deletedObj.Obj.(*unstructured.Unstructured)
+			if !ok {
+				logger.Errorw("Failed to cast deleted object to unstructured")
+				return
+			}
+		} else {
+			logger.Errorw("Failed to cast object to unstructured")
+			return
+		}
+	}
+
+	namespace := unstructuredObj.GetNamespace()
+	name := unstructuredObj.GetName()
+
+	switch actionType {
+	case CreateAction, UpdateAction:
+		// Send raw K8s object to webhook
+		c.webhookClient.SendUpsert(c.Resource.Kind, namespace, name, unstructuredObj.Object)
+		logger.Debugw("Queued upsert for webhook",
+			"kind", c.Resource.Kind,
+			"namespace", namespace,
+			"name", name)
+
+	case DeleteAction:
+		c.webhookClient.SendDelete(c.Resource.Kind, namespace, name)
+		logger.Debugw("Queued delete for webhook",
+			"kind", c.Resource.Kind,
+			"namespace", namespace,
+			"name", name)
+	}
 }

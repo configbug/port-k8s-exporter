@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/port-labs/port-k8s-exporter/pkg/config"
@@ -15,7 +16,9 @@ import (
 	"github.com/port-labs/port-k8s-exporter/pkg/port"
 	"github.com/port-labs/port-k8s-exporter/pkg/port/cli"
 	"github.com/port-labs/port-k8s-exporter/pkg/port/integration"
+	portwebhook "github.com/port-labs/port-k8s-exporter/pkg/port/webhook"
 	"github.com/port-labs/port-k8s-exporter/pkg/signal"
+	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 )
@@ -28,6 +31,16 @@ type ControllersHandler struct {
 	stopCh           chan struct{}
 	isStopped        bool
 	portConfig       *port.IntegrationAppConfig
+}
+
+// WebhookControllersHandler handles controllers for webhook mode
+type WebhookControllersHandler struct {
+	controllers      []*k8s.Controller
+	informersFactory dynamicinformer.DynamicSharedInformerFactory
+	stateKey         string
+	webhookClient    *portwebhook.Client
+	stopCh           chan struct{}
+	isStopped        bool
 }
 
 type FullResyncResults struct {
@@ -44,6 +57,7 @@ const (
 )
 
 var controllerHandler *ControllersHandler
+var webhookControllerHandler *WebhookControllersHandler
 
 func NewControllersHandler(exporterConfig *port.Config, portConfig *port.IntegrationAppConfig, k8sClient *k8s.Client, portClient *cli.PortClient) *ControllersHandler {
 	informersFactory := dynamicinformer.NewDynamicSharedInformerFactory(k8sClient.DynamicClient, 0)
@@ -238,4 +252,126 @@ func (c *ControllersHandler) Stop() {
 	logger.Info("Stopping controllers")
 	close(c.stopCh)
 	c.isStopped = true
+}
+
+// RunResyncWebhook runs a resync in webhook mode
+func RunResyncWebhook(exporterConfig *port.Config, k8sClient *k8s.Client, webhookClient *portwebhook.Client) error {
+	if webhookControllerHandler != nil {
+		webhookControllerHandler.Stop()
+	}
+
+	informersFactory := dynamicinformer.NewDynamicSharedInformerFactory(k8sClient.DynamicClient, 0)
+
+	// Load config from file for webhook mode
+	portConfig, err := loadWebhookConfig(exporterConfig)
+	if err != nil {
+		logger.Errorf("Error loading webhook config: %v", err)
+		return err
+	}
+
+	aggResources := make(map[string][]port.KindConfig)
+	for _, resource := range portConfig.Resources {
+		kindConfig := port.KindConfig{Selector: resource.Selector, Port: resource.Port}
+		if _, ok := aggResources[resource.Kind]; ok {
+			aggResources[resource.Kind] = append(aggResources[resource.Kind], kindConfig)
+		} else {
+			aggResources[resource.Kind] = []port.KindConfig{kindConfig}
+		}
+	}
+
+	controllers := make([]*k8s.Controller, 0, len(portConfig.Resources))
+
+	for kind, kindConfigs := range aggResources {
+		gvr, err := k8s.GetGVRFromResource(k8sClient.DiscoveryMapper, kind)
+		if err != nil {
+			logger.Errorf("Error getting GVR, skip handling for resource '%s': %s.", kind, err.Error())
+			continue
+		}
+
+		informer := informersFactory.ForResource(gvr)
+		controller := k8s.NewWebhookController(port.AggregatedResource{Kind: kind, KindConfigs: kindConfigs}, informer, webhookClient)
+		controllers = append(controllers, controller)
+	}
+
+	handler := &WebhookControllersHandler{
+		controllers:      controllers,
+		informersFactory: informersFactory,
+		stateKey:         exporterConfig.StateKey,
+		webhookClient:    webhookClient,
+		stopCh:           signal.SetupSignalHandler(),
+	}
+
+	webhookControllerHandler = handler
+	handler.Handle()
+
+	return nil
+}
+
+func (c *WebhookControllersHandler) Handle() {
+	logger.Infow("Starting webhook resync", "stateKey", c.stateKey)
+	c.informersFactory.Start(c.stopCh)
+
+	for _, controller := range c.controllers {
+		go func() {
+			<-c.stopCh
+			controller.Shutdown()
+		}()
+
+		logger.Infof("Waiting for informer cache to sync for resource '%s'", controller.Resource.Kind)
+		if err := controller.WaitForCacheSync(c.stopCh); err != nil {
+			logger.Errorw("Error waiting for cache sync", "error", err.Error())
+		}
+
+		logger.Infof("Running initial sync for resource '%s'", controller.Resource.Kind)
+		controller.RunInitialSync()
+		controller.RunEventsSync(1, c.stopCh)
+	}
+
+	// Flush webhook buffer after sync
+	c.webhookClient.FlushSync()
+	logger.Info("Webhook resync completed")
+}
+
+func (c *WebhookControllersHandler) Stop() {
+	if c.isStopped {
+		return
+	}
+	close(c.stopCh)
+	c.isStopped = true
+}
+
+func loadWebhookConfig(exporterConfig *port.Config) (*port.IntegrationAppConfig, error) {
+	// For webhook mode, load config from file or use defaults
+	// Since we can't call Port API without credentials
+	appConfig := &port.IntegrationAppConfig{
+		Resources:                    exporterConfig.Resources,
+		DeleteDependents:             exporterConfig.DeleteDependents,
+		CreateMissingRelatedEntities: exporterConfig.CreateMissingRelatedEntities,
+	}
+
+	// Try loading from defaults if no resources defined
+	if len(appConfig.Resources) == 0 {
+		defaults, err := getDefaultResources()
+		if err != nil {
+			return nil, err
+		}
+		appConfig.Resources = defaults
+	}
+
+	return appConfig, nil
+}
+
+func getDefaultResources() ([]port.Resource, error) {
+	// Load from assets/defaults/appConfig.yaml
+	file, err := os.ReadFile("assets/defaults/appConfig.yaml")
+	if err != nil {
+		return nil, fmt.Errorf("no resources configured and default config not found: %v", err)
+	}
+
+	var config port.IntegrationAppConfig
+	if err := yaml.Unmarshal(file, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse default config: %v", err)
+	}
+
+	return config.Resources, nil
 }
