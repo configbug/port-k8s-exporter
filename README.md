@@ -169,6 +169,20 @@ K8s Events → Informers → Batch → POST ingest.getport.io/integration/{id}/.
 | `CLUSTER_NAME` | Nombre identificador del cluster | (requerido) |
 | `STATE_KEY` | Clave única para el estado de sincronización | (requerido) |
 
+**Advanced Settings (Seguridad del Webhook):**
+
+Estos parámetros permiten configurar la firma HMAC de los requests para verificar autenticidad:
+
+| Variable | Descripción | Default |
+|----------|-------------|---------|
+| `WEBHOOK_SECRET` | Secreto para firma HMAC | (opcional) |
+| `WEBHOOK_SIGNATURE_HEADER` | Nombre del header de firma | `X-Port-Signature` |
+| `WEBHOOK_SIGNATURE_ALGORITHM` | Algoritmo: `sha256`, `sha1`, `sha512` | `sha256` |
+| `WEBHOOK_SIGNATURE_PREFIX` | Prefijo para el valor de firma | (vacío) |
+| `WEBHOOK_REQUEST_IDENTIFIER` | Path JQ para identificador de request | (opcional) |
+
+> **Nota**: Estos valores deben coincidir con la configuración del webhook en Port (ver imagen de configuración avanzada en Port UI).
+
 **Ejemplo de payload enviado a Port:**
 
 ```json
@@ -230,11 +244,70 @@ helm install port-k8s-exporter port-labs/port-k8s-exporter \
   --set stateKey="my-cluster-state" \
   --set clusterName="production" \
   --set configMap.config="$(cat your-config.yaml)"
+
+# Instalar con modo WEBHOOK + Advanced Settings (seguridad)
+helm install port-k8s-exporter port-labs/port-k8s-exporter \
+  --set eventListener.type="WEBHOOK" \
+  --set stateKey="my-cluster-state" \
+  --set clusterName="production" \
+  --set webhook.url="https://ingest.getport.io/your-webhook-id" \
+  --set webhook.secret="your-hmac-secret" \
+  --set webhook.signatureHeaderName="X-Port-Signature" \
+  --set webhook.signatureAlgorithm="sha256" \
+  --set webhook.signaturePrefix="sha256=" \
+  --set webhook.batchSize=50 \
+  --set webhook.batchTimeout=5 \
+  --set configMap.config="$(cat your-config.yaml)"
 ```
 
 ### Chart de Helm
 
 El chart oficial se encuentra en: [port-labs/helm-charts](https://github.com/port-labs/helm-charts/tree/main/charts/port-k8s-exporter)
+
+#### Configuración de Webhook en Helm values.yaml
+
+Para usar el modo WEBHOOK con Advanced Settings, crea un archivo `values.yaml`:
+
+```yaml
+# values.yaml para modo WEBHOOK
+eventListener:
+  type: "WEBHOOK"
+
+stateKey: "my-cluster-state"
+clusterName: "production-cluster"
+
+# Webhook Configuration
+webhook:
+  url: "https://ingest.getport.io/your-webhook-endpoint"
+  batchSize: 50
+  batchTimeout: 5  # segundos
+
+  # Advanced Settings (Security)
+  secret: "your-hmac-secret"           # Secreto para firma HMAC
+  signatureHeaderName: "X-Port-Signature"  # Nombre del header
+  signatureAlgorithm: "sha256"         # sha256, sha1, sha512
+  signaturePrefix: "sha256="           # Prefijo del valor de firma
+  requestIdentifier: ""                # Path JQ para request ID (opcional)
+
+# Config de recursos K8s a exportar
+configMap:
+  config: |
+    resources:
+      - kind: apps/v1/deployments
+        port:
+          entity:
+            mappings:
+              - identifier: .metadata.name + "-" + .metadata.namespace
+                blueprint: '"deployment"'
+```
+
+Instalar con el archivo values:
+
+```bash
+helm install port-k8s-exporter port-labs/port-k8s-exporter -f values.yaml
+```
+
+> **Importante**: Los valores de `webhook.secret`, `webhook.signatureHeaderName`, `webhook.signatureAlgorithm` y `webhook.signaturePrefix` deben coincidir exactamente con los configurados en Port UI (Settings → Advanced Settings del webhook).
 
 ### Desde Código Fuente
 
@@ -272,6 +345,11 @@ go build -o port-k8s-exporter .
 | `WEBHOOK_BATCH_SIZE` | Tamaño del batch (WEBHOOK) | No | `100` |
 | `WEBHOOK_BATCH_TIMEOUT` | Timeout del batch (WEBHOOK) | No | `5s` |
 | `CLUSTER_NAME` | Nombre del cluster (WEBHOOK) | Solo WEBHOOK | - |
+| `WEBHOOK_SECRET` | Secreto HMAC para firma (WEBHOOK) | No | - |
+| `WEBHOOK_SIGNATURE_HEADER` | Nombre del header de firma | No | `X-Port-Signature` |
+| `WEBHOOK_SIGNATURE_ALGORITHM` | Algoritmo de firma | No | `sha256` |
+| `WEBHOOK_SIGNATURE_PREFIX` | Prefijo del valor de firma | No | - |
+| `WEBHOOK_REQUEST_IDENTIFIER` | Path JQ para request ID | No | - |
 
 ### Flags de Línea de Comandos
 
@@ -290,6 +368,13 @@ Flags:
   --create-missing-related     Create missing related entities
   --webhook-url string         Webhook ingest URL (default "https://ingest.getport.io")
   --cluster-name string        Cluster name for webhook mode
+  
+  # Webhook Security (Advanced Settings)
+  --webhook-secret string           Secret for HMAC signature verification
+  --webhook-signature-header string Header name for signature (default "X-Port-Signature")
+  --webhook-signature-algorithm string Signature algorithm: sha256, sha1, sha512 (default "sha256")
+  --webhook-signature-prefix string Prefix for signature value (e.g., "sha256=")
+  --webhook-request-identifier string JQ path to extract request identifier
 ```
 
 ### Archivo de Configuración (config.yaml)

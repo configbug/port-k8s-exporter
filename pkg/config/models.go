@@ -50,4 +50,11 @@ type ApplicationConfiguration struct {
 	WebhookBatchSize    int    `json:"webhookBatchSize,omitempty"`
 	WebhookBatchTimeout int    `json:"webhookBatchTimeout,omitempty"` // in seconds
 	ClusterName         string `json:"clusterName,omitempty"`
+
+	// Webhook Security Configuration (Advanced Settings)
+	WebhookSecret              string `json:"webhookSecret,omitempty"`              // Secret for HMAC signature
+	WebhookSignatureHeaderName string `json:"webhookSignatureHeaderName,omitempty"` // Header name for signature (e.g., X-Port-Signature)
+	WebhookSignatureAlgorithm  string `json:"webhookSignatureAlgorithm,omitempty"`  // Algorithm: sha256, sha1, sha512
+	WebhookSignaturePrefix     string `json:"webhookSignaturePrefix,omitempty"`     // Prefix for signature (e.g., "sha256=")
+	WebhookRequestIdentifier   string `json:"webhookRequestIdentifier,omitempty"`   // JQ path to extract request identifier
 }

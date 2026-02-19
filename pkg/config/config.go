@@ -36,6 +36,13 @@ func Init() {
 	NewInt(&ApplicationConfig.WebhookBatchTimeout, "webhook-batch-timeout", 5, "Seconds to wait before flushing webhook batch. Optional.")
 	NewString(&ApplicationConfig.ClusterName, "cluster-name", "", "Kubernetes cluster name for identification. Optional.")
 
+	// Webhook Security Configuration (Advanced Settings)
+	NewString(&ApplicationConfig.WebhookSecret, "webhook-secret", "", "Secret for HMAC signature verification. Optional.")
+	NewString(&ApplicationConfig.WebhookSignatureHeaderName, "webhook-signature-header", "X-Port-Signature", "Header name for signature. Optional.")
+	NewString(&ApplicationConfig.WebhookSignatureAlgorithm, "webhook-signature-algorithm", "sha256", "Signature algorithm: sha256, sha1, sha512. Optional.")
+	NewString(&ApplicationConfig.WebhookSignaturePrefix, "webhook-signature-prefix", "", "Prefix for signature value (e.g., 'sha256='). Optional.")
+	NewString(&ApplicationConfig.WebhookRequestIdentifier, "webhook-request-identifier", "", "JQ path to extract request identifier. Optional.")
+
 	// Application Configuration
 	NewString(&ApplicationConfig.ConfigFilePath, "config", "config.yaml", "Path to Port K8s Exporter config file. Required.")
 	NewString(&ApplicationConfig.StateKey, "state-key", "my-k8s-exporter", "Port K8s Exporter state key id. Required.")

@@ -1,7 +1,14 @@
 package webhook
 
 import (
+	"crypto/hmac"
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"hash"
 	"sync"
 	"time"
 
@@ -9,6 +16,15 @@ import (
 	"github.com/port-labs/port-k8s-exporter/pkg/goutils"
 	"github.com/port-labs/port-k8s-exporter/pkg/logger"
 )
+
+// SecurityConfig holds webhook security settings
+type SecurityConfig struct {
+	Secret              string // Secret for HMAC signature
+	SignatureHeaderName string // Header name for signature
+	SignatureAlgorithm  string // Algorithm: sha256, sha1, sha512
+	SignaturePrefix     string // Prefix for signature value
+	RequestIdentifier   string // JQ path for request identifier
+}
 
 // Client handles sending events to Port's ingest webhook
 type Client struct {
@@ -18,6 +34,7 @@ type Client struct {
 	clusterName  string
 	batchSize    int
 	batchTimeout time.Duration
+	security     SecurityConfig
 
 	buffer      []WebhookPayload
 	bufferMutex sync.Mutex
@@ -28,7 +45,7 @@ type Client struct {
 }
 
 // NewClient creates a new webhook client
-func NewClient(webhookURL, stateKey, clusterName string, batchSize int, batchTimeout time.Duration) *Client {
+func NewClient(webhookURL, stateKey, clusterName string, batchSize int, batchTimeout time.Duration, security SecurityConfig) *Client {
 	httpClient := resty.New().
 		SetBaseURL(webhookURL).
 		SetTimeout(30 * time.Second).
@@ -42,6 +59,14 @@ func NewClient(webhookURL, stateKey, clusterName string, batchSize int, batchTim
 			return goutils.IsRetryableStatusCode(r.StatusCode())
 		})
 
+	// Set default values for security config
+	if security.SignatureHeaderName == "" {
+		security.SignatureHeaderName = "X-Port-Signature"
+	}
+	if security.SignatureAlgorithm == "" {
+		security.SignatureAlgorithm = "sha256"
+	}
+
 	c := &Client{
 		httpClient:   httpClient,
 		webhookURL:   webhookURL,
@@ -49,6 +74,7 @@ func NewClient(webhookURL, stateKey, clusterName string, batchSize int, batchTim
 		clusterName:  clusterName,
 		batchSize:    batchSize,
 		batchTimeout: batchTimeout,
+		security:     security,
 		buffer:       make([]WebhookPayload, 0, batchSize),
 		lastFlush:    time.Now(),
 		flushChan:    make(chan struct{}, 1),
@@ -150,9 +176,25 @@ func (c *Client) flush() {
 }
 
 func (c *Client) send(payload WebhookPayload) error {
+	// Serialize payload for signature
+	body, err := json.Marshal(payload)
+	if err != nil {
+		logger.Errorw("Failed to marshal payload", "error", err)
+		return err
+	}
+
 	req := c.httpClient.R().
 		SetHeader("Content-Type", "application/json").
-		SetBody(payload)
+		SetBody(body)
+
+	// Add signature header if secret is configured
+	if c.security.Secret != "" {
+		signature := c.computeSignature(body)
+		req.SetHeader(c.security.SignatureHeaderName, signature)
+		logger.Debugw("Added signature header",
+			"header", c.security.SignatureHeaderName,
+			"algorithm", c.security.SignatureAlgorithm)
+	}
 
 	if payload.Action == ActionDelete {
 		req.SetHeader("X-Port-Delete", "true")
@@ -183,6 +225,32 @@ func (c *Client) send(payload WebhookPayload) error {
 		"action", payload.Action)
 
 	return nil
+}
+
+// computeSignature computes HMAC signature for the payload
+func (c *Client) computeSignature(payload []byte) string {
+	var h hash.Hash
+
+	switch c.security.SignatureAlgorithm {
+	case "sha1":
+		h = hmac.New(sha1.New, []byte(c.security.Secret))
+	case "sha512":
+		h = hmac.New(sha512.New, []byte(c.security.Secret))
+	case "sha256":
+		fallthrough
+	default:
+		h = hmac.New(sha256.New, []byte(c.security.Secret))
+	}
+
+	h.Write(payload)
+	signature := hex.EncodeToString(h.Sum(nil))
+
+	// Add prefix if configured
+	if c.security.SignaturePrefix != "" {
+		signature = c.security.SignaturePrefix + signature
+	}
+
+	return signature
 }
 
 // FlushSync forces synchronous flush

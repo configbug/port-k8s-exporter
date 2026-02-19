@@ -40,7 +40,16 @@ func NewEventListener(stateKey string) (*EventListener, error) {
 		batchTimeout = 5 * time.Second
 	}
 
-	client := portwebhook.NewClient(webhookURL, stateKey, clusterName, batchSize, batchTimeout)
+	// Build security config from application settings
+	security := portwebhook.SecurityConfig{
+		Secret:              config.ApplicationConfig.WebhookSecret,
+		SignatureHeaderName: config.ApplicationConfig.WebhookSignatureHeaderName,
+		SignatureAlgorithm:  config.ApplicationConfig.WebhookSignatureAlgorithm,
+		SignaturePrefix:     config.ApplicationConfig.WebhookSignaturePrefix,
+		RequestIdentifier:   config.ApplicationConfig.WebhookRequestIdentifier,
+	}
+
+	client := portwebhook.NewClient(webhookURL, stateKey, clusterName, batchSize, batchTimeout, security)
 
 	return &EventListener{
 		stateKey:      stateKey,
