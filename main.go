@@ -45,6 +45,14 @@ func main() {
 		logger.Fatalf("Error building K8s client: %s", err.Error())
 	}
 
+	// Auto-detect cluster name when in WEBHOOK mode and none was explicitly configured.
+	if config.ApplicationConfig.EventListenerType == "WEBHOOK" && config.ApplicationConfig.ClusterName == "" {
+		resolved := k8s.ResolveClusterName(clientConfig, k8sConfig)
+		if resolved != "" {
+			config.ApplicationConfig.ClusterName = resolved
+		}
+	}
+
 	// Different initialization based on event listener type
 	if config.ApplicationConfig.EventListenerType == "WEBHOOK" {
 		runWebhookMode(applicationConfig, k8sClient)
