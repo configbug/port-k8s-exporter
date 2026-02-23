@@ -33,3 +33,6 @@ __debug_bin*
 
 # binary files
 port-k8s-exporter
+assets/defaults/webhook-mapping.txt
+assets/defaults/webhookMapping.json
+manifests/
