@@ -1,8 +1,8 @@
 [
   {
-    "identifier": "cluster",
+    "identifier": "dhh_cluster",
     "description": "This blueprint represents a Kubernetes Cluster",
-    "title": "Cluster",
+    "title": "Cluster (WH)",
     "icon": "Cluster",
     "schema": {
       "properties": {},
@@ -13,9 +13,9 @@
     "relations": {}
   },
   {
-    "identifier": "namespace",
+    "identifier": "dhh_namespace",
     "description": "This blueprint represents a k8s Namespace",
-    "title": "Namespace",
+    "title": "Namespace (WH)",
     "icon": "Environment",
     "schema": {
       "properties": {
@@ -39,16 +39,84 @@
       "Cluster": {
         "title": "Cluster",
         "description": "The namespace's Kubernetes cluster",
-        "target": "cluster",
+        "target": "dhh_cluster",
         "required": false,
         "many": false
       }
     }
   },
   {
-    "identifier": "workload",
+    "identifier": "dhh_node",
+    "description": "This blueprint represents a Kubernetes Node",
+    "title": "Node (WH)",
+    "icon": "Node",
+    "schema": {
+      "properties": {
+        "creationTimestamp": {
+          "type": "string",
+          "title": "Created",
+          "format": "date-time",
+          "description": "When the Node was created"
+        },
+        "totalCPU": {
+          "type": "string",
+          "title": "Total CPU",
+          "description": "Allocatable CPU of the Node"
+        },
+        "totalMemory": {
+          "type": "string",
+          "title": "Total Memory",
+          "description": "Allocatable memory of the Node"
+        },
+        "labels": {
+          "type": "object",
+          "title": "Labels",
+          "description": "Labels of the Node"
+        },
+        "kubeletVersion": {
+          "type": "string",
+          "title": "Kubelet Version",
+          "description": "Kubelet version running on the Node"
+        },
+        "ready": {
+          "type": "string",
+          "title": "Ready",
+          "description": "Node Ready condition status",
+          "enum": [
+            "True",
+            "False",
+            "Unknown"
+          ],
+          "enumColors": {
+            "True": "green",
+            "False": "red",
+            "Unknown": "yellow"
+          }
+        }
+      },
+      "required": []
+    },
+    "mirrorProperties": {
+      "cluster": {
+        "title": "Cluster",
+        "path": "Cluster.$title"
+      }
+    },
+    "calculationProperties": {},
+    "relations": {
+      "Cluster": {
+        "title": "Cluster",
+        "description": "The Kubernetes cluster this node belongs to",
+        "target": "dhh_cluster",
+        "required": false,
+        "many": false
+      }
+    }
+  },
+  {
+    "identifier": "dhh_workload",
     "description": "This blueprint represents a k8s Workload. This includes all k8s objects which can create pods (deployments[replicasets], daemonsets, statefulsets...)",
-    "title": "Workload",
+    "title": "Workload (WH)",
     "icon": "Deployment",
     "schema": {
       "properties": {
@@ -149,7 +217,225 @@
     "relations": {
       "Namespace": {
         "title": "Namespace",
-        "target": "namespace",
+        "description": "The namespace the workload is deployed in",
+        "target": "dhh_namespace",
+        "required": false,
+        "many": false
+      }
+    }
+  },
+  {
+    "identifier": "dhh_replicaSet",
+    "description": "This blueprint represents a k8s ReplicaSet",
+    "title": "Replica Set (WH)",
+    "icon": "Deployment",
+    "schema": {
+      "properties": {
+        "creationTimestamp": {
+          "type": "string",
+          "title": "Created",
+          "format": "date-time",
+          "description": "When the ReplicaSet was created"
+        },
+        "replicas": {
+          "type": "number",
+          "title": "Wanted Replicas",
+          "description": "Wanted replica count"
+        },
+        "availableReplicas": {
+          "type": "number",
+          "title": "Running Replicas",
+          "description": "Current running replica count"
+        },
+        "hasPrivileged": {
+          "type": "boolean",
+          "title": "Has Privileged Container"
+        },
+        "hasLatest": {
+          "type": "boolean",
+          "title": "Has 'latest' tag",
+          "description": "Has Container with 'latest' as image tag"
+        },
+        "hasLimits": {
+          "type": "boolean",
+          "title": "All containers have limits"
+        },
+        "strategy": {
+          "type": "string",
+          "title": "Strategy",
+          "description": "Rollout Strategy"
+        },
+        "isHealthy": {
+          "type": "string",
+          "enum": [
+            "Healthy",
+            "Unhealthy"
+          ],
+          "enumColors": {
+            "Healthy": "green",
+            "Unhealthy": "red"
+          },
+          "title": "ReplicaSet Health"
+        },
+        "labels": {
+          "type": "object",
+          "title": "Labels",
+          "description": "Labels of the ReplicaSet"
+        },
+        "containers": {
+          "type": "array",
+          "title": "Containers",
+          "default": [],
+          "description": "The containers defined in this ReplicaSet"
+        }
+      },
+      "required": []
+    },
+    "mirrorProperties": {
+      "Cluster": {
+        "title": "Cluster",
+        "path": "replicaSetManager.Namespace.Cluster.$title"
+      },
+      "namespace": {
+        "title": "Namespace",
+        "path": "replicaSetManager.Namespace.$title"
+      }
+    },
+    "calculationProperties": {},
+    "relations": {
+      "replicaSetManager": {
+        "title": "Managed By",
+        "description": "The workload (Deployment) that manages this ReplicaSet",
+        "target": "dhh_workload",
+        "required": false,
+        "many": false
+      }
+    }
+  },
+  {
+    "identifier": "dhh_pod",
+    "description": "This blueprint represents a Kubernetes Pod",
+    "title": "Pod (WH)",
+    "icon": "Microservices",
+    "schema": {
+      "properties": {
+        "startTime": {
+          "type": "string",
+          "title": "Start Time",
+          "format": "date-time",
+          "description": "When the Pod started"
+        },
+        "phase": {
+          "type": "string",
+          "title": "Phase",
+          "description": "Current lifecycle phase of the Pod",
+          "enum": [
+            "Pending",
+            "Running",
+            "Succeeded",
+            "Failed",
+            "Unknown"
+          ],
+          "enumColors": {
+            "Pending": "yellow",
+            "Running": "green",
+            "Succeeded": "green",
+            "Failed": "red",
+            "Unknown": "silver"
+          }
+        },
+        "labels": {
+          "type": "object",
+          "title": "Labels",
+          "description": "Labels of the Pod"
+        },
+        "containers": {
+          "type": "array",
+          "title": "Containers",
+          "default": [],
+          "description": "The containers running in this Pod"
+        }
+      },
+      "required": []
+    },
+    "mirrorProperties": {
+      "Cluster": {
+        "title": "Cluster",
+        "path": "Node.Cluster.$title"
+      },
+      "namespace": {
+        "title": "Namespace",
+        "path": "replicaSet.replicaSetManager.Namespace.$title"
+      }
+    },
+    "calculationProperties": {},
+    "relations": {
+      "replicaSet": {
+        "title": "Replica Set",
+        "description": "The ReplicaSet that owns this Pod (for Deployment-managed pods)",
+        "target": "dhh_replicaSet",
+        "required": false,
+        "many": false
+      },
+      "workload": {
+        "title": "Workload",
+        "description": "The Workload that owns this Pod (for non-ReplicaSet managed pods)",
+        "target": "dhh_workload",
+        "required": false,
+        "many": false
+      },
+      "Node": {
+        "title": "Node",
+        "description": "The Node where this Pod is scheduled",
+        "target": "dhh_node",
+        "required": false,
+        "many": false
+      }
+    }
+  },
+  {
+    "identifier": "dhh_configMap",
+    "description": "This blueprint represents a Kubernetes ConfigMap",
+    "title": "Config Map (WH)",
+    "icon": "Config",
+    "schema": {
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "title": "Namespace",
+          "description": "The namespace the ConfigMap belongs to"
+        },
+        "data": {
+          "type": "object",
+          "title": "Data",
+          "description": "Key-value pairs stored in the ConfigMap"
+        },
+        "labels": {
+          "type": "object",
+          "title": "Labels",
+          "description": "Labels of the ConfigMap"
+        },
+        "creationTimestamp": {
+          "type": "string",
+          "title": "Created",
+          "format": "date-time",
+          "description": "When the ConfigMap was created"
+        }
+      },
+      "required": []
+    },
+    "mirrorProperties": {
+      "Cluster": {
+        "title": "Cluster",
+        "path": "Namespace.Cluster.$title"
+      }
+    },
+    "calculationProperties": {},
+    "relations": {
+      "Namespace": {
+        "title": "Namespace",
+        "description": "The namespace this ConfigMap belongs to",
+        "target": "dhh_namespace",
         "required": false,
         "many": false
       }
