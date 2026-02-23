@@ -1,10 +1,27 @@
-ARG ACCOUNT_ID=1
-FROM ${ACCOUNT_ID}.dkr.ecr.eu-west-1.amazonaws.com/echo/dynamic:latest
+# Build stage
+FROM golang:1.24-bookworm AS builder
 
-RUN apt-get update && apt-get upgrade -y libssl3 && apt-get clean && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
 
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the binary
+RUN CGO_ENABLED=1 go build -o port-k8s-exporter .
+
+# Final stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libssl3 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/port-k8s-exporter /usr/bin/port-k8s-exporter
 COPY assets/ /assets
 
 ENTRYPOINT ["/usr/bin/port-k8s-exporter"]
-
-COPY port-k8s-exporter /usr/bin/port-k8s-exporter
