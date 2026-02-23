@@ -1,3 +1,5 @@
+version: 2
+
 before:
   hooks:
     - go mod tidy
@@ -39,7 +41,7 @@ dockers:
   - "--platform=linux/amd64"
   # - "--build-arg=ACCOUNT_ID={{ .Env.AWS_ACCOUNT_ID }}"  # Skipped for WEBHOOK mode
   extra_files:
-    - assets/
+    - assets/defaults/
 - image_templates:
   - "{{ .Env.REGISTRY }}/{{ .Env.IMAGE_NAME }}:{{ .Version }}-arm64v8"
   use: buildx
@@ -53,7 +55,7 @@ dockers:
   - "--platform=linux/arm64/v8"
   # - "--build-arg=ACCOUNT_ID={{ .Env.AWS_ACCOUNT_ID }}"  # Skipped for WEBHOOK mode
   extra_files:
-    - assets/
+    - assets/defaults/
 docker_manifests:
 - name_template: "{{ .Env.REGISTRY }}/{{ .Env.IMAGE_NAME }}:{{ .Version }}"
   image_templates:
@@ -64,7 +66,8 @@ docker_manifests:
   - "{{ .Env.REGISTRY }}/{{ .Env.IMAGE_NAME }}:{{ .Version }}-amd64"
   - "{{ .Env.REGISTRY }}/{{ .Env.IMAGE_NAME }}:{{ .Version }}-arm64v8"
 archives:
-- format: zip
+- formats:
+    - zip
   name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
 checksum:
   name_template: '{{ .ProjectName }}_{{ .Version }}_SHA256SUMS'
