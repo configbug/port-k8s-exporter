@@ -41,7 +41,10 @@ dockers:
   - "--platform=linux/amd64"
   # - "--build-arg=ACCOUNT_ID={{ .Env.AWS_ACCOUNT_ID }}"  # Skipped for WEBHOOK mode
   extra_files:
-    - assets/defaults/
+    - assets/defaults/appConfig.yaml
+    - assets/defaults/blueprints.json
+    - assets/defaults/pages.json
+    - assets/defaults/scorecards.json
 - image_templates:
   - "{{ .Env.REGISTRY }}/{{ .Env.IMAGE_NAME }}:{{ .Version }}-arm64v8"
   use: buildx
@@ -55,7 +58,10 @@ dockers:
   - "--platform=linux/arm64/v8"
   # - "--build-arg=ACCOUNT_ID={{ .Env.AWS_ACCOUNT_ID }}"  # Skipped for WEBHOOK mode
   extra_files:
-    - assets/defaults/
+    - assets/defaults/appConfig.yaml
+    - assets/defaults/blueprints.json
+    - assets/defaults/pages.json
+    - assets/defaults/scorecards.json
 docker_manifests:
 - name_template: "{{ .Env.REGISTRY }}/{{ .Env.IMAGE_NAME }}:{{ .Version }}"
   image_templates:
