@@ -11,8 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy pre-compiled binary from GoReleaser
 COPY port-k8s-exporter /usr/bin/port-k8s-exporter
 
-# Copy assets from GoReleaser context
-# GoReleaser copies contents of assets/defaults/ as defaults/ folder
-COPY defaults/ /assets/defaults/
+# Create assets directory and copy config files
+# GoReleaser puts files from assets/defaults/ directly in build context root
+RUN mkdir -p /assets/defaults
+COPY appConfig.yaml blueprints.json pages.json scorecards.json /assets/defaults/
 
 ENTRYPOINT ["/usr/bin/port-k8s-exporter"]
