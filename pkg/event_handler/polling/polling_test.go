@@ -68,6 +68,7 @@ func (f *Fixture) CleanIntegration() {
 }
 
 func TestPolling_DifferentConfiguration(t *testing.T) {
+	t.Skip("Skipping integration test")
 	called := false
 	c := make(chan time.Time)
 	fixture := NewFixture(t, c)

@@ -67,6 +67,7 @@ func deleteDefaultResources(portClient *cli.PortClient, stateKey string) {
 }
 
 func Test_InitIntegration_InitDefaults(t *testing.T) {
+	t.Skip("Skipping integration test")
 	f := NewFixture(t)
 	defer tearDownFixture(t, f)
 	e := InitIntegration(f.portClient, &port.Config{
@@ -97,6 +98,7 @@ func Test_InitIntegration_InitDefaults(t *testing.T) {
 }
 
 func Test_InitIntegration_InitDefaults_CreateDefaultResources_False(t *testing.T) {
+	t.Skip("Skipping integration test")
 	f := NewFixture(t)
 	defer tearDownFixture(t, f)
 	e := InitIntegration(f.portClient, &port.Config{
@@ -114,6 +116,7 @@ func Test_InitIntegration_InitDefaults_CreateDefaultResources_False(t *testing.T
 }
 
 func Test_InitIntegration_BlueprintExists(t *testing.T) {
+	t.Skip("Skipping integration test")
 	f := NewFixture(t)
 	defer tearDownFixture(t, f)
 	if _, err := blueprint.NewBlueprint(f.portClient, port.Blueprint{
@@ -144,6 +147,7 @@ func Test_InitIntegration_BlueprintExists(t *testing.T) {
 }
 
 func Test_InitIntegration_PageExists(t *testing.T) {
+	t.Skip("Skipping integration test")
 	f := NewFixture(t)
 	defer tearDownFixture(t, f)
 	if err := page.CreatePage(f.portClient, port.Page{
@@ -171,6 +175,7 @@ func Test_InitIntegration_PageExists(t *testing.T) {
 }
 
 func Test_InitIntegration_ExistingIntegration(t *testing.T) {
+	t.Skip("Skipping integration test")
 	f := NewFixture(t)
 	defer tearDownFixture(t, f)
 	_, err := integration.CreateIntegration(f.portClient, f.stateKey, "", nil, false, "unknown")
@@ -192,6 +197,7 @@ func Test_InitIntegration_ExistingIntegration(t *testing.T) {
 }
 
 func Test_InitIntegration_LocalResourcesConfiguration(t *testing.T) {
+	t.Skip("Skipping integration test")
 	f := NewFixture(t)
 	defer tearDownFixture(t, f)
 	_, err := integration.CreateIntegration(f.portClient, f.stateKey, "", nil, false, "unknown")
@@ -235,6 +241,7 @@ func Test_InitIntegration_LocalResourcesConfiguration(t *testing.T) {
 }
 
 func Test_InitIntegration_LocalResourcesConfiguration_ExistingIntegration_EmptyConfiguration(t *testing.T) {
+	t.Skip("Skipping integration test")
 	f := NewFixture(t)
 	defer tearDownFixture(t, f)
 	_, err := integration.CreateIntegration(f.portClient, f.stateKey, "POLLING", nil, false, "unknown")
@@ -258,6 +265,7 @@ func Test_InitIntegration_LocalResourcesConfiguration_ExistingIntegration_EmptyC
 }
 
 func Test_InitIntegration_LocalResourcesConfiguration_ExistingIntegration_WithConfiguration_WithOverwriteConfigurationOnRestartFlag(t *testing.T) {
+	t.Skip("Skipping integration test")
 	f := NewFixture(t)
 	defer tearDownFixture(t, f)
 

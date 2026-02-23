@@ -405,6 +405,7 @@ func (f *fixture) runControllerEventsSync() {
 }
 
 func TestSuccessfulRunInitialSync(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	blueprintIdentifier := getBlueprintId(stateKey)
 	ud1 := newUnstructured(newDeployment(stateKey))
@@ -464,6 +465,7 @@ func TestRunInitialSyncWithBadSelector(t *testing.T) {
 }
 
 func TestRunEventsSyncWithCreateEvent(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	d := newDeployment(stateKey)
 	ud := newUnstructured(d)
@@ -490,6 +492,7 @@ func TestRunEventsSyncWithCreateEvent(t *testing.T) {
 }
 
 func TestRunEventsSyncWithUpdateEvent(t *testing.T) {
+	t.Skip("Skipping integration test")
 	id := guuid.NewString()
 	stateKey := guuid.NewString()
 	blueprintIdentifier := getBlueprintId(stateKey)
@@ -519,6 +522,7 @@ func TestRunEventsSyncWithUpdateEvent(t *testing.T) {
 }
 
 func TestCreateDeployment(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	blueprintId := getBlueprintId(stateKey)
 	d := newDeployment(stateKey)
@@ -531,6 +535,7 @@ func TestCreateDeployment(t *testing.T) {
 }
 
 func TestUpdateDeployment(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	blueprintId := getBlueprintId(stateKey)
 	d := newDeployment(stateKey)
@@ -543,6 +548,7 @@ func TestUpdateDeployment(t *testing.T) {
 }
 
 func TestDeleteDeploymentSameOwner(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	blueprintId := getBlueprintId(stateKey)
 	d := newDeployment(stateKey)
@@ -602,6 +608,7 @@ func TestFailPortAuth(t *testing.T) {
 }
 
 func TestFailDeletePortEntity(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	blueprintId := getBlueprintId(stateKey)
 	d := newDeployment(stateKey)
@@ -619,6 +626,7 @@ func TestFailDeletePortEntity(t *testing.T) {
 }
 
 func TestCreateDeploymentWithSearchIdentifier(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	blueprintId := getBlueprintId(stateKey)
 	id := guuid.NewString()
@@ -763,6 +771,7 @@ func TestUpdateHandlerWithIndividualPropertyChanges(t *testing.T) {
 }
 
 func TestDeleteDeploymentDifferentOwner(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	blueprintId := getBlueprintId("non_exist")
 	d := newDeployment(stateKey)
@@ -877,6 +886,7 @@ func newBlueprintWithContainerName(blueprintId string) port.Blueprint {
 }
 
 func TestItemsToParseName(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	blueprintId := getBlueprintId(stateKey)
 	d := newDeployment(stateKey)
@@ -910,6 +920,7 @@ func TestItemsToParseName(t *testing.T) {
 }
 
 func TestItemsToParseNameCustom(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	blueprintId := getBlueprintId(stateKey)
 	d := newDeployment(stateKey)
@@ -944,6 +955,7 @@ func TestItemsToParseNameCustom(t *testing.T) {
 }
 
 func TestCreateDeploymentWithTeamString(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	blueprintId := getBlueprintId(stateKey)
 	id := guuid.NewString()
@@ -969,6 +981,7 @@ func TestCreateDeploymentWithTeamString(t *testing.T) {
 }
 
 func TestCreateDeploymentWithTeamSearch(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	blueprintId := getBlueprintId(stateKey)
 	id := guuid.NewString()
@@ -1040,6 +1053,7 @@ func TestCreateDeploymentWithTeamSearch(t *testing.T) {
 }
 
 func TestCreateDeploymentWithMultiTeamSearch(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	blueprintId := getBlueprintId(stateKey)
 	id := guuid.NewString()

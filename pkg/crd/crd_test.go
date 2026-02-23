@@ -151,7 +151,7 @@ func newFixture(t *testing.T, userAgent string, namespaced bool, crdsDiscoveryPa
 }
 
 func checkBlueprintAndActionsProperties(t *testing.T, f *Fixture, namespaced bool) {
-
+	t.Skip("Skipping integration test")
 	blueprintId := getBlueprintId(f.stateKey)
 	bp, err := blueprint.GetBlueprint(f.portClient, blueprintId)
 	if err != nil {

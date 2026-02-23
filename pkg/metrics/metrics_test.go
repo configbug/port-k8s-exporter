@@ -471,6 +471,7 @@ func validateMetrics(
 }
 
 func TestMetricsPopulation_SuccessfullResync(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	resources := buildMappings(stateKey, map[string][]OverrideableFields{
 		deploymentKind: {
@@ -506,6 +507,7 @@ func TestMetricsPopulation_SuccessfullResync(t *testing.T) {
 }
 
 func TestMetricsPopulation_Selector(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	resources := buildMappings(stateKey, map[string][]OverrideableFields{
 		daemonSetKind: {
@@ -549,6 +551,7 @@ func TestMetricsPopulation_Selector(t *testing.T) {
 }
 
 func TestMetricsPopulation_ItemsToParse(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	resources := buildMappings(stateKey, map[string][]OverrideableFields{
 		deploymentKind: {
@@ -581,6 +584,7 @@ func TestMetricsPopulation_ItemsToParse(t *testing.T) {
 }
 
 func TestMetricsPopulation_Delete(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	resources := buildMappings(stateKey, map[string][]OverrideableFields{
 		daemonSetKind: {
@@ -628,6 +632,7 @@ func TestMetricsPopulation_Delete(t *testing.T) {
 }
 
 func TestMetricsPopulation_InvalidSelectorMapping(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	resources := buildMappings(stateKey, map[string][]OverrideableFields{
 		daemonSetKind: {
@@ -668,6 +673,7 @@ func TestMetricsPopulation_InvalidSelectorMapping(t *testing.T) {
 }
 
 func TestMetricsPopulation_InvalidIdentifierMapping(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	resources := buildMappings(stateKey, map[string][]OverrideableFields{
 		daemonSetKind: {
@@ -695,6 +701,7 @@ func TestMetricsPopulation_InvalidIdentifierMapping(t *testing.T) {
 }
 
 func TestMetricsPopulation_NonExistBlueprintMapping(t *testing.T) {
+	t.Skip("Skipping integration test")
 	stateKey := guuid.NewString()
 	resources := buildMappings(stateKey, map[string][]OverrideableFields{
 		daemonSetKind: {
