@@ -8,7 +8,7 @@ on:
 
 env:
   REGISTRY: "ghcr.io"
-  IMAGE_NAME: "port-labs/port-k8s-exporter"
+  IMAGE_NAME: "${{ github.repository }}"
 
 jobs:
   release:
@@ -31,12 +31,14 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Configure AWS Credentials 🔒
+        if: false  # Skipped for WEBHOOK mode - no AWS credentials needed
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: eu-west-1
           role-to-assume: ${{ secrets.AWS_ECR_ROLE_ARN }}
 
       - name: Login to ECR
+        if: false  # Skipped for WEBHOOK mode - no AWS credentials needed
         uses: aws-actions/amazon-ecr-login@v2
         with:
           mask-password: 'true'
@@ -49,6 +51,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Import GPG key
+        if: false  # Skipped for WEBHOOK mode - GPG signing optional
         id: import_gpg
         uses: crazy-max/ghaction-import-gpg@v6
         with:
@@ -82,7 +85,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+          # GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}  # Skipped for WEBHOOK mode
           REGISTRY: ${{ env.REGISTRY }}
-          IMAGE: ${{ env.IMAGE_NAME }}
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          # AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}  # Skipped for WEBHOOK mode
