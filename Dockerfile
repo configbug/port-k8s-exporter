@@ -1,18 +1,21 @@
-# Dockerfile for GoReleaser - ARM64
-# Binary is pre-compiled by GoReleaser, no build stage needed
+# Dockerfile for pre-compiled binary (from GoReleaser)
+# NO compilation here - binary is provided via build context
 
 FROM debian:bookworm-slim
+
+# TARGETARCH is auto-injected by buildx (amd64, arm64)
+ARG TARGETARCH
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl3 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Copy pre-compiled binary from GoReleaser
-COPY port-k8s-exporter /usr/bin/port-k8s-exporter
+# Copy pre-compiled binary (provided by workflow)
+COPY port-k8s-exporter-${TARGETARCH} /usr/bin/port-k8s-exporter
+RUN chmod +x /usr/bin/port-k8s-exporter
 
-# Copy assets from GoReleaser context
-# GoReleaser copies contents of assets/defaults/ as defaults/ folder
-COPY defaults/ /assets/defaults/
+# Copy assets directly from source
+COPY assets/ /assets/
 
 ENTRYPOINT ["/usr/bin/port-k8s-exporter"]
