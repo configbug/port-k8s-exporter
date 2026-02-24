@@ -163,8 +163,8 @@ K8s Events → Informers → Batch → POST ingest.getport.io/integration/{id}/.
 
 | Variable | Descripción | Default |
 |----------|-------------|---------|
-| `WEBHOOK_URL` | URL del endpoint de ingest | `https://ingest.getport.io` |
-| `WEBHOOK_BATCH_SIZE` | Tamaño máximo del batch | `100` |
+| `WEBHOOK_URL` | URL del endpoint de ingest | (requerida) |
+| `WEBHOOK_BATCH_SIZE` | Tamaño máximo del batch | `50` |
 | `WEBHOOK_BATCH_TIMEOUT` | Timeout para flush del batch | `5s` |
 | `CLUSTER_NAME` | Nombre identificador del cluster | (requerido) |
 | `STATE_KEY` | Clave única para el estado de sincronización | (requerido) |
@@ -338,11 +338,11 @@ go build -o port-k8s-exporter .
 | `PORT_BASE_URL` | URL base de la API de Port | No | `https://api.getport.io` |
 | `STATE_KEY` | Clave única para identificar el estado | Sí | - |
 | `EVENT_LISTENER_TYPE` | Tipo de event listener | No | `POLLING` |
-| `RESYNC_INTERVAL` | Intervalo de resync en minutos | No | `1440` (24h) |
+| `RESYNC_INTERVAL` | Intervalo de resync en minutos | No | `0` (deshabilitado) |
 | `DELETE_DEPENDENTS` | Eliminar entidades dependientes | No | `false` |
 | `CREATE_MISSING_RELATED_ENTITIES` | Crear entidades relacionadas faltantes | No | `false` |
-| `WEBHOOK_URL` | URL del endpoint de ingest (WEBHOOK) | Solo WEBHOOK | `https://ingest.getport.io` |
-| `WEBHOOK_BATCH_SIZE` | Tamaño del batch (WEBHOOK) | No | `100` |
+| `WEBHOOK_URL` | URL del endpoint de ingest (WEBHOOK) | Solo WEBHOOK | - |
+| `WEBHOOK_BATCH_SIZE` | Tamaño del batch (WEBHOOK) | No | `50` |
 | `WEBHOOK_BATCH_TIMEOUT` | Timeout del batch (WEBHOOK) | No | `5s` |
 | `CLUSTER_NAME` | Nombre del cluster (WEBHOOK) | Solo WEBHOOK | - |
 | `WEBHOOK_SECRET` | Secreto HMAC para firma (WEBHOOK) | No | - |
@@ -363,10 +363,10 @@ Flags:
   --port-base-url string       Port API base URL (default "https://api.getport.io")
   --state-key string           Unique state key for this exporter instance
   --event-listener-type string Event listener type: POLLING, KAFKA, or WEBHOOK (default "POLLING")
-  --resync-interval int        Resync interval in minutes (default 1440)
+  --resync-interval int        Resync interval in minutes (default 0, disabled)
   --delete-dependents          Delete dependent entities on parent deletion
   --create-missing-related     Create missing related entities
-  --webhook-url string         Webhook ingest URL (default "https://ingest.getport.io")
+  --webhook-url string         Webhook ingest URL (required in WEBHOOK mode)
   --cluster-name string        Cluster name for webhook mode
   
   # Webhook Security (Advanced Settings)
@@ -573,38 +573,40 @@ port-k8s-exporter/
 El exporter expone métricas en el endpoint `/metrics`:
 
 ```
-# Métricas disponibles
-port_k8s_exporter_entities_synced_total{blueprint="deployment",action="upsert"} 150
-port_k8s_exporter_entities_synced_total{blueprint="deployment",action="delete"} 10
-port_k8s_exporter_sync_duration_seconds{blueprint="deployment"} 0.523
-port_k8s_exporter_errors_total{type="api_error"} 2
-port_k8s_exporter_resync_total 5
-port_k8s_exporter_webhook_batch_size{} 100
-port_k8s_exporter_webhook_requests_total{status="success"} 50
+# Métricas disponibles (expuestas en :9090/metrics)
+port_k8s_exporter_duration_seconds{kind="apps/v1/deployments",phase="load"} 0.523
+port_k8s_exporter_duration_seconds{kind="__resync__",phase="resync"} 2.110
+port_k8s_exporter_object_count{kind="apps/v1/deployments",object_count_type="transformed",phase="transform"} 150
+port_k8s_exporter_object_count{kind="apps/v1/deployments",object_count_type="loaded",phase="load"} 148
+port_k8s_exporter_object_count{kind="apps/v1/deployments",object_count_type="failed",phase="load"} 2
+port_k8s_exporter_success{kind="apps/v1/deployments",phase="load"} 1
+port_k8s_exporter_success{kind="__resync__",phase="resync"} 1
 ```
+
+Etiquetas disponibles:
+- `kind`: tipo de recurso K8s (e.g. `apps/v1/deployments`) o `__resync__` / `__reconciliation__`
+- `phase`: `extract`, `transform`, `load`, `resync`, `delete`
+- `object_count_type`: `raw_extracted`, `transformed`, `filtered_out`, `loaded`, `deleted`, `failed`
+- `port_k8s_exporter_success` valores: `1.0` (éxito), `0.0` (fallo), `-1.0` (omitido)
 
 ### Logging
 
-El exporter usa `zap` para logging estructurado:
+El exporter usa `zap` para logging estructurado con soporte de envío de logs a un endpoint HTTP externo:
 
 ```bash
-# Nivel de log configurable
-export LOG_LEVEL=debug  # debug, info, warn, error
+# Nivel de log configurable via flag o env var
+./port-k8s-exporter --logging-level=debug   # debug, info, warn, error
+# o bien:
+export LOGGING_LEVEL=debug
 
-# Ejemplo de logs
+# HTTP logging (habilitado por defecto)
+export HTTP_LOGGING_ENABLED=true      # Envía logs a endpoint HTTP
+export HTTP_LOGGING_TIMEOUT=5         # Timeout en segundos (default: 5)
+
+# Ejemplo de logs estructurados
 {"level":"info","ts":"2024-01-15T10:30:00Z","msg":"Starting Port K8s Exporter","version":"0.2.0"}
 {"level":"info","ts":"2024-01-15T10:30:01Z","msg":"Initialized controller","kind":"apps/v1/deployments"}
 {"level":"debug","ts":"2024-01-15T10:30:02Z","msg":"Processing event","kind":"Deployment","name":"nginx","namespace":"default","action":"upsert"}
-```
-
-### Health Checks
-
-```bash
-# Liveness probe
-GET /healthz
-
-# Readiness probe  
-GET /readyz
 ```
 
 ## Troubleshooting
@@ -672,10 +674,9 @@ env:
 
 ```bash
 # Habilitar logs de debug
-export LOG_LEVEL=debug
-
-# Ver requests HTTP (solo desarrollo)
-export HTTP_DEBUG=true
+export LOGGING_LEVEL=debug
+# o via flag:
+./port-k8s-exporter --logging-level=debug --debug-mode=true
 ```
 
 ## Documentación Adicional
