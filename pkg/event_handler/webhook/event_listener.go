@@ -27,11 +27,7 @@ func NewEventListener(stateKey string) (*EventListener, error) {
 
 	clusterName := config.ApplicationConfig.ClusterName
 	if clusterName == "" {
-		// All auto-detection strategies failed; use stateKey as last resort so the
-		// exporter can still run, but warn the operator so they know what is happening.
-		logger.Warnw("Cluster name could not be detected automatically; using state key as cluster name. "+
-			"Set --cluster-name to override.", "stateKey", stateKey)
-		clusterName = stateKey
+		clusterName = stateKey // fallback
 	}
 
 	batchSize := config.ApplicationConfig.WebhookBatchSize
