@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"hash"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -36,16 +37,40 @@ type Client struct {
 	batchTimeout time.Duration
 	security     SecurityConfig
 
-	buffer      []WebhookPayload
-	bufferMutex sync.Mutex
-	lastFlush   time.Time
-	flushChan   chan struct{}
-	doneChan    chan struct{}
-	wg          sync.WaitGroup
+	// Buffer management
+	buffer        []WebhookPayload
+	bufferMutex   sync.Mutex
+	maxBufferSize int        // Maximum buffer size (backpressure)
+	bufferCond    *sync.Cond // Condition variable for backpressure
+
+	// Worker pool
+	numWorkers int
+	workerChan chan WebhookPayload
+
+	// Rate limiting
+	rateLimiter <-chan time.Time
+
+	// Lifecycle
+	lastFlush time.Time
+	flushChan chan struct{}
+	doneChan  chan struct{}
+	wg        sync.WaitGroup
+
+	// Metrics
+	droppedCount int64
+	sentCount    int64
 }
 
 // NewClient creates a new webhook client
 func NewClient(webhookURL, stateKey, clusterName string, batchSize int, batchTimeout time.Duration, security SecurityConfig) *Client {
+	return NewClientWithOptions(webhookURL, stateKey, clusterName, batchSize, batchTimeout, security, 1000, 5, 100)
+}
+
+// NewClientWithOptions creates a new webhook client with advanced options
+// maxBufferSize: maximum payloads in buffer before backpressure (default 1000)
+// numWorkers: number of parallel workers for sending (default 5)
+// rateLimit: max requests per second (default 100)
+func NewClientWithOptions(webhookURL, stateKey, clusterName string, batchSize int, batchTimeout time.Duration, security SecurityConfig, maxBufferSize, numWorkers, rateLimit int) *Client {
 	httpClient := resty.New().
 		SetBaseURL(webhookURL).
 		SetTimeout(30 * time.Second).
@@ -67,29 +92,79 @@ func NewClient(webhookURL, stateKey, clusterName string, batchSize int, batchTim
 		security.SignatureAlgorithm = "sha256"
 	}
 
-	c := &Client{
-		httpClient:   httpClient,
-		webhookURL:   webhookURL,
-		stateKey:     stateKey,
-		clusterName:  clusterName,
-		batchSize:    batchSize,
-		batchTimeout: batchTimeout,
-		security:     security,
-		buffer:       make([]WebhookPayload, 0, batchSize),
-		lastFlush:    time.Now(),
-		flushChan:    make(chan struct{}, 1),
-		doneChan:     make(chan struct{}),
+	// Set sensible defaults
+	if maxBufferSize <= 0 {
+		maxBufferSize = 1000
+	}
+	if numWorkers <= 0 {
+		numWorkers = 5
+	}
+	if rateLimit <= 0 {
+		rateLimit = 100
 	}
 
+	c := &Client{
+		httpClient:    httpClient,
+		webhookURL:    webhookURL,
+		stateKey:      stateKey,
+		clusterName:   clusterName,
+		batchSize:     batchSize,
+		batchTimeout:  batchTimeout,
+		security:      security,
+		buffer:        make([]WebhookPayload, 0, batchSize),
+		maxBufferSize: maxBufferSize,
+		numWorkers:    numWorkers,
+		workerChan:    make(chan WebhookPayload, numWorkers*10), // Buffered channel for workers
+		rateLimiter:   time.Tick(time.Second / time.Duration(rateLimit)),
+		lastFlush:     time.Now(),
+		flushChan:     make(chan struct{}, 1),
+		doneChan:      make(chan struct{}),
+	}
+
+	c.bufferCond = sync.NewCond(&c.bufferMutex)
+
+	// Start background flusher
 	c.wg.Add(1)
 	go c.backgroundFlusher()
+
+	// Start worker pool
+	for i := 0; i < numWorkers; i++ {
+		c.wg.Add(1)
+		go c.worker(i)
+	}
+
+	logger.Infow("Webhook client initialized",
+		"maxBufferSize", maxBufferSize,
+		"numWorkers", numWorkers,
+		"rateLimit", rateLimit,
+		"batchSize", batchSize)
 
 	return c
 }
 
-// Enqueue adds a payload to the buffer
+// Enqueue adds a payload to the buffer with backpressure support
 func (c *Client) Enqueue(payload WebhookPayload) {
 	c.bufferMutex.Lock()
+
+	// Backpressure: wait if buffer is full (with timeout)
+	waitStart := time.Now()
+	maxWait := 5 * time.Second
+	for len(c.buffer) >= c.maxBufferSize {
+		// Check if we've been waiting too long
+		if time.Since(waitStart) > maxWait {
+			atomic.AddInt64(&c.droppedCount, 1)
+			c.bufferMutex.Unlock()
+			logger.Warnw("Dropped webhook payload due to buffer overflow",
+				"resourceType", payload.ResourceType,
+				"name", payload.Name,
+				"bufferSize", c.maxBufferSize,
+				"droppedTotal", atomic.LoadInt64(&c.droppedCount))
+			return
+		}
+		// Wait for signal that buffer has space (with timeout)
+		c.bufferCond.Wait()
+	}
+
 	c.buffer = append(c.buffer, payload)
 	shouldFlush := len(c.buffer) >= c.batchSize
 	c.bufferMutex.Unlock()
@@ -104,6 +179,9 @@ func (c *Client) Enqueue(payload WebhookPayload) {
 
 // SendUpsert queues an upsert event
 func (c *Client) SendUpsert(resourceType, namespace, name string, rawObject interface{}) {
+	// Clean the object before sending to reduce memory and payload size
+	cleanedObject := cleanK8sObject(rawObject)
+
 	c.Enqueue(WebhookPayload{
 		Action:       ActionUpsert,
 		ResourceType: resourceType,
@@ -111,8 +189,55 @@ func (c *Client) SendUpsert(resourceType, namespace, name string, rawObject inte
 		StateKey:     c.stateKey,
 		Namespace:    namespace,
 		Name:         name,
-		Data:         rawObject,
+		Data:         cleanedObject,
 	})
+}
+
+// cleanK8sObject removes unnecessary fields from K8s objects to reduce memory usage
+// This removes managedFields and last-applied-configuration which can be 30-50% of the object size
+func cleanK8sObject(obj interface{}) interface{} {
+	objMap, ok := obj.(map[string]interface{})
+	if !ok {
+		return obj
+	}
+
+	// Create a shallow copy to avoid modifying the original
+	cleaned := make(map[string]interface{}, len(objMap))
+	for k, v := range objMap {
+		cleaned[k] = v
+	}
+
+	// Clean metadata
+	if metadata, ok := cleaned["metadata"].(map[string]interface{}); ok {
+		cleanedMetadata := make(map[string]interface{}, len(metadata))
+		for k, v := range metadata {
+			cleanedMetadata[k] = v
+		}
+
+		// Remove managedFields (very large, not needed for Port mappings)
+		delete(cleanedMetadata, "managedFields")
+
+		// Clean annotations
+		if annotations, ok := cleanedMetadata["annotations"].(map[string]interface{}); ok {
+			cleanedAnnotations := make(map[string]interface{}, len(annotations))
+			for k, v := range annotations {
+				// Remove kubectl.kubernetes.io/last-applied-configuration (duplicates entire object)
+				if k == "kubectl.kubernetes.io/last-applied-configuration" {
+					continue
+				}
+				cleanedAnnotations[k] = v
+			}
+			if len(cleanedAnnotations) > 0 {
+				cleanedMetadata["annotations"] = cleanedAnnotations
+			} else {
+				delete(cleanedMetadata, "annotations")
+			}
+		}
+
+		cleaned["metadata"] = cleanedMetadata
+	}
+
+	return cleaned
 }
 
 // SendDelete queues a delete event
@@ -155,6 +280,26 @@ func (c *Client) backgroundFlusher() {
 	}
 }
 
+// worker is a goroutine that processes payloads from the worker channel
+func (c *Client) worker(id int) {
+	defer c.wg.Done()
+
+	for payload := range c.workerChan {
+		// Rate limiting: wait for token
+		<-c.rateLimiter
+
+		if err := c.send(payload); err != nil {
+			logger.Debugw("Worker failed to send payload",
+				"worker", id,
+				"resourceType", payload.ResourceType,
+				"name", payload.Name,
+				"error", err)
+		} else {
+			atomic.AddInt64(&c.sentCount, 1)
+		}
+	}
+}
+
 func (c *Client) flush() {
 	c.bufferMutex.Lock()
 	if len(c.buffer) == 0 {
@@ -166,12 +311,29 @@ func (c *Client) flush() {
 	copy(payloads, c.buffer)
 	c.buffer = c.buffer[:0]
 	c.lastFlush = time.Now()
+
+	// Signal that buffer has space for waiting goroutines
+	c.bufferCond.Broadcast()
 	c.bufferMutex.Unlock()
 
-	logger.Infow("Flushing webhook batch", "count", len(payloads))
+	logger.Infow("Flushing webhook batch",
+		"count", len(payloads),
+		"sentTotal", atomic.LoadInt64(&c.sentCount),
+		"droppedTotal", atomic.LoadInt64(&c.droppedCount))
 
+	// Send payloads to worker pool (non-blocking with timeout)
 	for _, payload := range payloads {
-		c.send(payload)
+		select {
+		case c.workerChan <- payload:
+			// Successfully queued to worker
+		case <-time.After(100 * time.Millisecond):
+			// Worker channel full, log warning but don't block
+			logger.Warnw("Worker channel full, payload may be delayed",
+				"resourceType", payload.ResourceType,
+				"name", payload.Name)
+			// Try one more time with blocking
+			c.workerChan <- payload
+		}
 	}
 }
 
@@ -256,10 +418,37 @@ func (c *Client) computeSignature(payload []byte) string {
 // FlushSync forces synchronous flush
 func (c *Client) FlushSync() {
 	c.flush()
+	// Wait a bit for workers to process
+	time.Sleep(100 * time.Millisecond)
 }
 
 // Shutdown gracefully shuts down the client
 func (c *Client) Shutdown() {
+	logger.Infow("Shutting down webhook client",
+		"sentTotal", atomic.LoadInt64(&c.sentCount),
+		"droppedTotal", atomic.LoadInt64(&c.droppedCount))
+
+	// Signal background flusher to stop
 	close(c.doneChan)
+
+	// Give some time for final flush
+	time.Sleep(200 * time.Millisecond)
+
+	// Close worker channel (this will cause workers to exit after processing remaining items)
+	close(c.workerChan)
+
+	// Wait for all goroutines to finish
 	c.wg.Wait()
+
+	logger.Infow("Webhook client shutdown complete",
+		"finalSentTotal", atomic.LoadInt64(&c.sentCount),
+		"finalDroppedTotal", atomic.LoadInt64(&c.droppedCount))
+}
+
+// GetStats returns the current stats for monitoring
+func (c *Client) GetStats() (sent, dropped int64, bufferLen int) {
+	c.bufferMutex.Lock()
+	bufferLen = len(c.buffer)
+	c.bufferMutex.Unlock()
+	return atomic.LoadInt64(&c.sentCount), atomic.LoadInt64(&c.droppedCount), bufferLen
 }
