@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "port-k8s-exporter.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "port-k8s-exporter.labels" . | nindent 4 }}
+data:
+  WEBHOOK_URL: {{ .Values.webhookUrl | quote }}
+  config.yaml: |
+    createMissingRelatedEntities: {{ .Values.config.createMissingRelatedEntities }}
+    resources:
+      {{- toYaml .Values.config.resources | nindent 6 }}

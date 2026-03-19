@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "port-k8s-exporter.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "port-k8s-exporter.labels" . | nindent 4 }}
+    app.kubernetes.io/component: exporter
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "port-k8s-exporter.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "port-k8s-exporter.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "port-k8s-exporter.serviceAccountName" . }}
+      containers:
+        - name: exporter
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: EVENT_LISTENER_TYPE
+              value: {{ .Values.eventListenerType | quote }}
+            - name: CONFIG
+              value: "/config/config.yaml"
+            - name: CLUSTER_NAME
+              value: {{ .Values.clusterName | quote }}
+            - name: STATE_KEY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: RESYNC_INTERVAL
+              value: {{ .Values.resyncInterval | quote }}
+            - name: WEBHOOK_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "port-k8s-exporter.fullname" . }}-config
+                  key: WEBHOOK_URL
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "port-k8s-exporter.fullname" . }}-config
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

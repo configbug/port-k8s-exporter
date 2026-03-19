@@ -1,0 +1,38 @@
+# Values for DESA (Desarrollo) environment
+
+replicaCount: 1
+
+image:
+  tag: "v0.1.9"
+  pullPolicy: Always
+
+webhookUrl: "https://ingest.getport.io/REPLACE_WITH_DESA_WEBHOOK_URL"
+
+clusterName: "desa-cluster"
+
+eventListenerType: "WEBHOOK"
+
+resyncInterval: 5
+
+config:
+  createMissingRelatedEntities: true
+  resources:
+    - kind: v1/namespaces
+    - kind: v1/nodes
+    - kind: apps/v1/deployments
+    - kind: apps/v1/daemonsets
+    - kind: apps/v1/statefulsets
+    - kind: apps/v1/replicasets
+    - kind: v1/pods
+    - kind: v1/configmaps
+
+namespace:
+  create: true
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

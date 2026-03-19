@@ -1,0 +1,75 @@
+# Default values for port-k8s-exporter
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/configbug/port-k8s-exporter
+  tag: ""  # defaults to Chart.appVersion
+  pullPolicy: Always
+
+# Port webhook URL (required)
+webhookUrl: ""
+
+# Kubernetes cluster name
+clusterName: ""
+
+# Event listener type: WEBHOOK or POLLING
+eventListenerType: "WEBHOOK"
+
+# Resync interval in minutes
+resyncInterval: 5
+
+# Exporter configuration
+config:
+  createMissingRelatedEntities: true
+  resources:
+    - kind: v1/namespaces
+    - kind: v1/nodes
+    - kind: apps/v1/deployments
+    - kind: apps/v1/daemonsets
+    - kind: apps/v1/statefulsets
+    - kind: apps/v1/replicasets
+    - kind: v1/pods
+    - kind: v1/configmaps
+
+# Namespace creation
+namespace:
+  create: false
+
+# ServiceAccount
+serviceAccount:
+  nameOverride: ""
+  annotations: {}
+
+# Resource limits
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Additional environment variables
+extraEnv: []
+#  - name: MY_VAR
+#    value: "my-value"
+
+# Pod scheduling
+nodeSelector: {}
+
+tolerations: []
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: port-k8s-exporter
+          topologyKey: kubernetes.io/hostname
+
+# Override chart name
+nameOverride: ""
+fullnameOverride: ""
