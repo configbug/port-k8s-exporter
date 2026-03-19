@@ -8,17 +8,18 @@ image:
   pullPolicy: Always
 
 # -------------------------------------------------------------------
-# REQUIRED per-cluster values (set via --set at install time)
+# REQUIRED: cluster name (set via --set clusterName=aksinfrdesa001)
 # -------------------------------------------------------------------
-
-# Cluster name (e.g., aksinfrdesa001, aksinfrcert042, aksinfrprod100)
 clusterName: ""
 
-# Cluster group (1-5). Determines which webhook URL to use.
-clusterGroup: "1"
-
-# Cluster size: small, medium, large. Determines resource limits.
-clusterSize: "small"
+# -------------------------------------------------------------------
+# Cluster inventory: maps cluster name → group + size
+# Group (1-5) determines webhook URL. Size determines resources.
+# Override per environment in values-{env}.yaml
+# -------------------------------------------------------------------
+clusterInventory: {}
+#  aksinfrdesa001: { group: "1", size: small }
+#  aksinfrdesa002: { group: "1", size: medium }
 
 # -------------------------------------------------------------------
 # Webhook URLs per cluster group (overridden per environment)
@@ -75,7 +76,6 @@ config:
     - kind: apps/v1/deployments
     - kind: apps/v1/daemonsets
     - kind: apps/v1/statefulsets
-    - kind: apps/v1/replicasets
     - kind: v1/pods
     - kind: v1/configmaps
 

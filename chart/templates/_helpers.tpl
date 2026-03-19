@@ -60,11 +60,47 @@ ServiceAccount name
 {{- end }}
 
 {{/*
-Resolve the webhook URL for the current cluster group.
-Fails if clusterGroup is not defined in webhookUrls.
+Lookup cluster entry from inventory.
+Fails if clusterName is not in clusterInventory.
+*/}}
+{{- define "port-k8s-exporter.clusterEntry" -}}
+{{- $name := required "clusterName is required (e.g., aksinfrdesa001)" .Values.clusterName }}
+{{- if not (hasKey .Values.clusterInventory $name) }}
+{{- fail (printf "cluster '%s' not found in clusterInventory. Add it to the values file." $name) }}
+{{- end }}
+{{- index .Values.clusterInventory $name | toYaml }}
+{{- end }}
+
+{{/*
+Resolve the cluster group from inventory.
+*/}}
+{{- define "port-k8s-exporter.clusterGroup" -}}
+{{- $name := required "clusterName is required (e.g., aksinfrdesa001)" .Values.clusterName }}
+{{- if not (hasKey .Values.clusterInventory $name) }}
+{{- fail (printf "cluster '%s' not found in clusterInventory. Add it to the values file." $name) }}
+{{- end }}
+{{- $entry := index .Values.clusterInventory $name }}
+{{- $entry.group | toString }}
+{{- end }}
+
+{{/*
+Resolve the cluster size from inventory.
+*/}}
+{{- define "port-k8s-exporter.clusterSize" -}}
+{{- $name := required "clusterName is required (e.g., aksinfrdesa001)" .Values.clusterName }}
+{{- if not (hasKey .Values.clusterInventory $name) }}
+{{- fail (printf "cluster '%s' not found in clusterInventory. Add it to the values file." $name) }}
+{{- end }}
+{{- $entry := index .Values.clusterInventory $name }}
+{{- $entry.size }}
+{{- end }}
+
+{{/*
+Resolve the webhook URL for the current cluster.
+Looks up group from inventory, then resolves URL from webhookUrls.
 */}}
 {{- define "port-k8s-exporter.webhookUrl" -}}
-{{- $group := .Values.clusterGroup | toString }}
+{{- $group := include "port-k8s-exporter.clusterGroup" . }}
 {{- if not (hasKey .Values.webhookUrls $group) }}
 {{- fail (printf "clusterGroup '%s' not found in webhookUrls. Valid groups: %s" $group (keys .Values.webhookUrls | sortAlpha | join ", ")) }}
 {{- end }}
@@ -72,11 +108,10 @@ Fails if clusterGroup is not defined in webhookUrls.
 {{- end }}
 
 {{/*
-Resolve resource limits based on cluster size profile.
-Fails if clusterSize is not defined in sizeProfiles.
+Resolve resource limits based on cluster size from inventory.
 */}}
 {{- define "port-k8s-exporter.resources" -}}
-{{- $size := .Values.clusterSize }}
+{{- $size := include "port-k8s-exporter.clusterSize" . }}
 {{- if not (hasKey .Values.sizeProfiles $size) }}
 {{- fail (printf "clusterSize '%s' not found in sizeProfiles. Valid sizes: %s" $size (keys .Values.sizeProfiles | sortAlpha | join ", ")) }}
 {{- end }}

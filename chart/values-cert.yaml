@@ -1,12 +1,8 @@
 # Values for CERT (Certificación) environment
 #
-# Install example:
-#   helm install port-exporter chart/ \
-#     -f chart/values-cert.yaml \
-#     -n port-k8s-exporter --create-namespace \
-#     --set clusterName=aksinfrcert001 \
-#     --set clusterGroup=2 \
-#     --set clusterSize=medium
+# Install:
+#   helm install port-exporter chart/ -f chart/values-cert.yaml \
+#     --set clusterName=aksinfrcert001 -n port-k8s-exporter --create-namespace
 
 replicaCount: 1
 
@@ -15,10 +11,33 @@ image:
   pullPolicy: IfNotPresent
 
 eventListenerType: "WEBHOOK"
-
 resyncInterval: 10
 
-# Webhook URLs per cluster group (5 groups)
+# -------------------------------------------------------------------
+# Cluster inventory for CERT
+# -------------------------------------------------------------------
+clusterInventory:
+  # Grupo 1
+  aksinfrcert001: { group: "1", size: small }
+  aksinfrcert002: { group: "1", size: small }
+  aksinfrcert003: { group: "1", size: medium }
+  # Grupo 2
+  aksinfrcert004: { group: "2", size: small }
+  aksinfrcert005: { group: "2", size: medium }
+  aksinfrcert006: { group: "2", size: large }
+  # Grupo 3
+  aksinfrcert007: { group: "3", size: small }
+  aksinfrcert008: { group: "3", size: medium }
+  aksinfrcert009: { group: "3", size: large }
+  # Grupo 4
+  aksinfrcert010: { group: "4", size: medium }
+  aksinfrcert011: { group: "4", size: large }
+  aksinfrcert012: { group: "4", size: small }
+  # Grupo 5
+  aksinfrcert013: { group: "5", size: small }
+  aksinfrcert014: { group: "5", size: medium }
+  aksinfrcert015: { group: "5", size: large }
+
 webhookUrls:
   "1": "https://ingest.getport.io/REPLACE_CERT_GROUP_1"
   "2": "https://ingest.getport.io/REPLACE_CERT_GROUP_2"
@@ -26,29 +45,16 @@ webhookUrls:
   "4": "https://ingest.getport.io/REPLACE_CERT_GROUP_4"
   "5": "https://ingest.getport.io/REPLACE_CERT_GROUP_5"
 
-# Resource profiles by cluster size
 sizeProfiles:
   small:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 256Mi
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
   medium:
-    requests:
-      cpu: 250m
-      memory: 256Mi
-    limits:
-      cpu: "1"
-      memory: 512Mi
+    requests: { cpu: 250m, memory: 256Mi }
+    limits:   { cpu: "1", memory: 512Mi }
   large:
-    requests:
-      cpu: 500m
-      memory: 512Mi
-    limits:
-      cpu: "2"
-      memory: 1Gi
+    requests: { cpu: 500m, memory: 512Mi }
+    limits:   { cpu: "2", memory: 1Gi }
 
 config:
   createMissingRelatedEntities: true
@@ -58,7 +64,6 @@ config:
     - kind: apps/v1/deployments
     - kind: apps/v1/daemonsets
     - kind: apps/v1/statefulsets
-    - kind: apps/v1/replicasets
     - kind: v1/pods
     - kind: v1/configmaps
 

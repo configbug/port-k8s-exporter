@@ -1,12 +1,8 @@
 # Values for DESA (Desarrollo) environment
 #
-# Install example:
-#   helm install port-exporter chart/ \
-#     -f chart/values-desa.yaml \
-#     -n port-k8s-exporter --create-namespace \
-#     --set clusterName=aksinfrdesa001 \
-#     --set clusterGroup=1 \
-#     --set clusterSize=small
+# Install:
+#   helm install port-exporter chart/ -f chart/values-desa.yaml \
+#     --set clusterName=aksinfrdesa001 -n port-k8s-exporter --create-namespace
 
 replicaCount: 1
 
@@ -15,10 +11,33 @@ image:
   pullPolicy: Always
 
 eventListenerType: "WEBHOOK"
-
 resyncInterval: 5
 
-# Webhook URLs per cluster group (5 groups)
+# -------------------------------------------------------------------
+# Cluster inventory for DESA
+# -------------------------------------------------------------------
+clusterInventory:
+  # Grupo 1
+  aksinfrdesa001: { group: "1", size: small }
+  aksinfrdesa002: { group: "1", size: small }
+  aksinfrdesa003: { group: "1", size: medium }
+  # Grupo 2
+  aksinfrdesa004: { group: "2", size: small }
+  aksinfrdesa005: { group: "2", size: medium }
+  aksinfrdesa006: { group: "2", size: large }
+  # Grupo 3
+  aksinfrdesa007: { group: "3", size: small }
+  aksinfrdesa008: { group: "3", size: medium }
+  aksinfrdesa009: { group: "3", size: large }
+  # Grupo 4
+  aksinfrdesa010: { group: "4", size: medium }
+  aksinfrdesa011: { group: "4", size: large }
+  aksinfrdesa012: { group: "4", size: small }
+  # Grupo 5
+  aksinfrdesa013: { group: "5", size: small }
+  aksinfrdesa014: { group: "5", size: medium }
+  aksinfrdesa015: { group: "5", size: large }
+
 webhookUrls:
   "1": "https://ingest.getport.io/REPLACE_DESA_GROUP_1"
   "2": "https://ingest.getport.io/REPLACE_DESA_GROUP_2"
@@ -26,29 +45,16 @@ webhookUrls:
   "4": "https://ingest.getport.io/REPLACE_DESA_GROUP_4"
   "5": "https://ingest.getport.io/REPLACE_DESA_GROUP_5"
 
-# Resource profiles by cluster size
 sizeProfiles:
   small:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 256Mi
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
   medium:
-    requests:
-      cpu: 250m
-      memory: 256Mi
-    limits:
-      cpu: "1"
-      memory: 512Mi
+    requests: { cpu: 250m, memory: 256Mi }
+    limits:   { cpu: "1", memory: 512Mi }
   large:
-    requests:
-      cpu: 500m
-      memory: 512Mi
-    limits:
-      cpu: "2"
-      memory: 1Gi
+    requests: { cpu: 500m, memory: 512Mi }
+    limits:   { cpu: "2", memory: 1Gi }
 
 config:
   createMissingRelatedEntities: true
@@ -58,7 +64,6 @@ config:
     - kind: apps/v1/deployments
     - kind: apps/v1/daemonsets
     - kind: apps/v1/statefulsets
-    - kind: apps/v1/replicasets
     - kind: v1/pods
     - kind: v1/configmaps
 
