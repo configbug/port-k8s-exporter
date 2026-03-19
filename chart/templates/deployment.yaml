@@ -29,7 +29,7 @@ spec:
             - name: CONFIG
               value: "/config/config.yaml"
             - name: CLUSTER_NAME
-              value: {{ .Values.clusterName | quote }}
+              value: {{ required "clusterName is required (e.g., aksinfrdesa001)" .Values.clusterName | quote }}
             - name: STATE_KEY
               valueFrom:
                 fieldRef:
@@ -49,7 +49,7 @@ spec:
               mountPath: /config
               readOnly: true
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- include "port-k8s-exporter.resources" . | nindent 12 }}
       volumes:
         - name: config
           configMap:

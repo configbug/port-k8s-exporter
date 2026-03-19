@@ -7,11 +7,58 @@ image:
   tag: ""  # defaults to Chart.appVersion
   pullPolicy: Always
 
-# Port webhook URL (required)
-webhookUrl: ""
+# -------------------------------------------------------------------
+# REQUIRED per-cluster values (set via --set at install time)
+# -------------------------------------------------------------------
 
-# Kubernetes cluster name
+# Cluster name (e.g., aksinfrdesa001, aksinfrcert042, aksinfrprod100)
 clusterName: ""
+
+# Cluster group (1-5). Determines which webhook URL to use.
+clusterGroup: "1"
+
+# Cluster size: small, medium, large. Determines resource limits.
+clusterSize: "small"
+
+# -------------------------------------------------------------------
+# Webhook URLs per cluster group (overridden per environment)
+# -------------------------------------------------------------------
+webhookUrls:
+  "1": ""
+  "2": ""
+  "3": ""
+  "4": ""
+  "5": ""
+
+# -------------------------------------------------------------------
+# Resource profiles by cluster size
+# -------------------------------------------------------------------
+sizeProfiles:
+  small:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  medium:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  large:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+
+# -------------------------------------------------------------------
+# General settings
+# -------------------------------------------------------------------
 
 # Event listener type: WEBHOOK or POLLING
 eventListenerType: "WEBHOOK"
@@ -40,15 +87,6 @@ namespace:
 serviceAccount:
   nameOverride: ""
   annotations: {}
-
-# Resource limits
-resources:
-  requests:
-    cpu: 100m
-    memory: 128Mi
-  limits:
-    cpu: 500m
-    memory: 512Mi
 
 # Additional environment variables
 extraEnv: []

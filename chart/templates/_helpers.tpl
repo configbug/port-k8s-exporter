@@ -58,3 +58,27 @@ ServiceAccount name
 {{- include "port-k8s-exporter.fullname" . }}
 {{- end }}
 {{- end }}
+
+{{/*
+Resolve the webhook URL for the current cluster group.
+Fails if clusterGroup is not defined in webhookUrls.
+*/}}
+{{- define "port-k8s-exporter.webhookUrl" -}}
+{{- $group := .Values.clusterGroup | toString }}
+{{- if not (hasKey .Values.webhookUrls $group) }}
+{{- fail (printf "clusterGroup '%s' not found in webhookUrls. Valid groups: %s" $group (keys .Values.webhookUrls | sortAlpha | join ", ")) }}
+{{- end }}
+{{- index .Values.webhookUrls $group }}
+{{- end }}
+
+{{/*
+Resolve resource limits based on cluster size profile.
+Fails if clusterSize is not defined in sizeProfiles.
+*/}}
+{{- define "port-k8s-exporter.resources" -}}
+{{- $size := .Values.clusterSize }}
+{{- if not (hasKey .Values.sizeProfiles $size) }}
+{{- fail (printf "clusterSize '%s' not found in sizeProfiles. Valid sizes: %s" $size (keys .Values.sizeProfiles | sortAlpha | join ", ")) }}
+{{- end }}
+{{- toYaml (index .Values.sizeProfiles $size) }}
+{{- end }}

@@ -1,4 +1,12 @@
 # Values for DESA (Desarrollo) environment
+#
+# Install example:
+#   helm install port-exporter chart/ \
+#     -f chart/values-desa.yaml \
+#     -n port-k8s-exporter --create-namespace \
+#     --set clusterName=aksinfrdesa001 \
+#     --set clusterGroup=1 \
+#     --set clusterSize=small
 
 replicaCount: 1
 
@@ -6,13 +14,41 @@ image:
   tag: "v0.1.9"
   pullPolicy: Always
 
-webhookUrl: "https://ingest.getport.io/REPLACE_WITH_DESA_WEBHOOK_URL"
-
-clusterName: "desa-cluster"
-
 eventListenerType: "WEBHOOK"
 
 resyncInterval: 5
+
+# Webhook URLs per cluster group (5 groups)
+webhookUrls:
+  "1": "https://ingest.getport.io/REPLACE_DESA_GROUP_1"
+  "2": "https://ingest.getport.io/REPLACE_DESA_GROUP_2"
+  "3": "https://ingest.getport.io/REPLACE_DESA_GROUP_3"
+  "4": "https://ingest.getport.io/REPLACE_DESA_GROUP_4"
+  "5": "https://ingest.getport.io/REPLACE_DESA_GROUP_5"
+
+# Resource profiles by cluster size
+sizeProfiles:
+  small:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  medium:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  large:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
 
 config:
   createMissingRelatedEntities: true
@@ -28,11 +64,3 @@ config:
 
 namespace:
   create: true
-
-resources:
-  requests:
-    cpu: 100m
-    memory: 128Mi
-  limits:
-    cpu: 500m
-    memory: 256Mi
