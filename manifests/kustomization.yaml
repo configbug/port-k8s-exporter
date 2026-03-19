@@ -1,0 +1,34 @@
+# Port K8s Exporter - Kustomization
+#
+# Apply all resources with: kubectl apply -k manifests/
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: port-k8s-exporter
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - clusterrole.yaml
+  - clusterrolebinding.yaml
+  - configmap.yaml
+  - deployment.yaml
+
+# Common labels applied to all resources
+labels:
+  - pairs:
+      app.kubernetes.io/name: port-k8s-exporter
+      app.kubernetes.io/part-of: port-k8s-exporter
+      app.kubernetes.io/managed-by: kubectl
+
+# You can customize values here or create overlays
+# Example overlay structure:
+#   manifests/
+#   ├── base/
+#   │   └── kustomization.yaml (this file)
+#   └── overlays/
+#       ├── production/
+#       │   └── kustomization.yaml
+#       └── staging/
+#           └── kustomization.yaml

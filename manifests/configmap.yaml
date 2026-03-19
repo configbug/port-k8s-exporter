@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: port-k8s-exporter-config
+  namespace: port-k8s-exporter
+  labels:
+    app.kubernetes.io/name: port-k8s-exporter
+data:
+  # REQUIRED: Your Port webhook URL from ingest.getport.io
+  WEBHOOK_URL: "https://ingest.getport.io/AxzJ5eWoyMRZ8SeT"
+  config.yaml: |
+    createMissingRelatedEntities: true
+    resources:
+      - kind: v1/namespaces
+      - kind: v1/nodes
+      - kind: apps/v1/deployments
+      - kind: apps/v1/daemonsets
+      - kind: apps/v1/statefulsets
+      - kind: apps/v1/replicasets
+      - kind: v1/pods
+      - kind: v1/configmaps

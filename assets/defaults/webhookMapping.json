@@ -1,0 +1,307 @@
+[
+  {
+    "blueprint": "dhh_cluster",
+    "operation": "create",
+    "filter": ".body.action == \"upsert\" and .body.resourceType == \"v1/namespaces\" and (.body.data.metadata.name | contains(\"kube-system\"))",
+    "entity": {
+      "identifier": ".body.clusterName",
+      "title": ".body.clusterName"
+    }
+  },
+
+  {
+    "blueprint": "dhh_namespace",
+    "operation": "create",
+    "filter": ".body.action == \"upsert\" and .body.resourceType == \"v1/namespaces\" and (.body.data.metadata.name | startswith(\"kube-\") | not)",
+    "entity": {
+      "identifier": ".body.data.metadata.name + \"-\" + .body.clusterName",
+      "title": ".body.data.metadata.name",
+      "properties": {
+        "creationTimestamp": ".body.data.metadata.creationTimestamp",
+        "labels": ".body.data.metadata.labels"
+      },
+      "relations": {
+        "Cluster": ".body.clusterName"
+      }
+    }
+  },
+
+  {
+    "blueprint": "dhh_namespace",
+    "operation": "delete",
+    "filter": ".body.action == \"delete\" and .body.resourceType == \"v1/namespaces\"",
+    "entity": {
+      "identifier": ".body.name + \"-\" + .body.clusterName"
+    }
+  },
+
+  {
+    "blueprint": "dhh_node",
+    "operation": "create",
+    "filter": ".body.action == \"upsert\" and .body.resourceType == \"v1/nodes\"",
+    "entity": {
+      "identifier": "(.body.data.metadata.name | split(\".\") | join(\"_\")) + \"-\" + .body.clusterName",
+      "title": ".body.data.metadata.name + \"-\" + .body.clusterName",
+      "properties": {
+        "creationTimestamp": ".body.data.metadata.creationTimestamp",
+        "totalCPU": ".body.data.status.allocatable.cpu",
+        "totalMemory": ".body.data.status.allocatable.memory",
+        "labels": ".body.data.metadata.labels",
+        "kubeletVersion": ".body.data.status.nodeInfo.kubeletVersion | split(\"-\") | .[0]",
+        "ready": ".body.data.status.conditions[] | select(.type == \"Ready\") | .status"
+      },
+      "relations": {
+        "Cluster": ".body.clusterName"
+      }
+    }
+  },
+
+  {
+    "blueprint": "dhh_node",
+    "operation": "delete",
+    "filter": ".body.action == \"delete\" and .body.resourceType == \"v1/nodes\"",
+    "entity": {
+      "identifier": "(.body.name | split(\".\") | join(\"_\")) + \"-\" + .body.clusterName"
+    }
+  },
+
+  {
+    "blueprint": "dhh_workload",
+    "operation": "create",
+    "filter": ".body.action == \"upsert\" and .body.resourceType == \"apps/v1/deployments\" and (.body.data.metadata.namespace | startswith(\"kube-\") | not)",
+    "entity": {
+      "identifier": ".body.data.metadata.name + \"-Deployment-\" + .body.data.metadata.namespace + \"-\" + .body.clusterName",
+      "title": ".body.data.metadata.name",
+      "properties": {
+        "kind": "\"Deployment\"",
+        "creationTimestamp": ".body.data.metadata.creationTimestamp",
+        "labels": ".body.data.metadata.labels",
+        "replicas": ".body.data.spec.replicas",
+        "availableReplicas": ".body.data.status.availableReplicas",
+        "images": "(.body.data.spec.template.spec.containers | map({name, image, resources})) | map(\"\\(.name): \\(.image)\")",
+        "containers": ".body.data.spec.template.spec.containers | map({name, image, resources})",
+        "strategy": ".body.data.spec.strategy.type",
+        "strategyConfig": ".body.data.spec.strategy // {}",
+        "hasLatest": ".body.data.spec.template.spec.containers[].image | contains(\":latest\")",
+        "hasLimits": ".body.data.spec.template.spec.containers | all(has(\"resources\") and (.resources.limits.memory and .resources.limits.cpu))",
+        "hasPrivileged": ".body.data.spec.template.spec.containers | [.[].securityContext.privileged] | any",
+        "isHealthy": "if .body.data.spec.replicas == .body.data.status.availableReplicas then \"Healthy\" else \"Unhealthy\" end"
+      },
+      "relations": {
+        "Namespace": ".body.data.metadata.namespace + \"-\" + .body.clusterName"
+      }
+    }
+  },
+
+  {
+    "blueprint": "dhh_workload",
+    "operation": "delete",
+    "filter": ".body.action == \"delete\" and .body.resourceType == \"apps/v1/deployments\"",
+    "entity": {
+      "identifier": ".body.name + \"-Deployment-\" + .body.namespace + \"-\" + .body.clusterName"
+    }
+  },
+
+  {
+    "blueprint": "dhh_workload",
+    "operation": "create",
+    "filter": ".body.action == \"upsert\" and .body.resourceType == \"apps/v1/daemonsets\" and (.body.data.metadata.namespace | startswith(\"kube-\") | not)",
+    "entity": {
+      "identifier": ".body.data.metadata.name + \"-DaemonSet-\" + .body.data.metadata.namespace + \"-\" + .body.clusterName",
+      "title": ".body.data.metadata.name",
+      "properties": {
+        "kind": "\"DaemonSet\"",
+        "creationTimestamp": ".body.data.metadata.creationTimestamp",
+        "labels": ".body.data.metadata.labels",
+        "replicas": ".body.data.spec.replicas",
+        "availableReplicas": ".body.data.status.availableReplicas",
+        "containers": ".body.data.spec.template.spec.containers | map({name, image, resources})",
+        "strategyConfig": ".body.data.spec.strategy // {}",
+        "hasLatest": ".body.data.spec.template.spec.containers[].image | contains(\":latest\")",
+        "hasLimits": ".body.data.spec.template.spec.containers | all(has(\"resources\") and (.resources.limits.memory and .resources.limits.cpu))",
+        "hasPrivileged": ".body.data.spec.template.spec.containers | [.[].securityContext.privileged] | any",
+        "isHealthy": "if .body.data.spec.replicas == .body.data.status.availableReplicas then \"Healthy\" else \"Unhealthy\" end"
+      },
+      "relations": {
+        "Namespace": ".body.data.metadata.namespace + \"-\" + .body.clusterName"
+      }
+    }
+  },
+
+  {
+    "blueprint": "dhh_workload",
+    "operation": "delete",
+    "filter": ".body.action == \"delete\" and .body.resourceType == \"apps/v1/daemonsets\"",
+    "entity": {
+      "identifier": ".body.name + \"-DaemonSet-\" + .body.namespace + \"-\" + .body.clusterName"
+    }
+  },
+
+  {
+    "blueprint": "dhh_workload",
+    "operation": "create",
+    "filter": ".body.action == \"upsert\" and .body.resourceType == \"apps/v1/statefulsets\" and (.body.data.metadata.namespace | startswith(\"kube-\") | not)",
+    "entity": {
+      "identifier": ".body.data.metadata.name + \"-StatefulSet-\" + .body.data.metadata.namespace + \"-\" + .body.clusterName",
+      "title": ".body.data.metadata.name",
+      "properties": {
+        "kind": "\"StatefulSet\"",
+        "creationTimestamp": ".body.data.metadata.creationTimestamp",
+        "labels": ".body.data.metadata.labels",
+        "replicas": ".body.data.spec.replicas",
+        "availableReplicas": ".body.data.status.availableReplicas",
+        "containers": ".body.data.spec.template.spec.containers | map({name, image, resources})",
+        "strategyConfig": ".body.data.spec.strategy // {}",
+        "hasLatest": ".body.data.spec.template.spec.containers[].image | contains(\":latest\")",
+        "hasLimits": ".body.data.spec.template.spec.containers | all(has(\"resources\") and (.resources.limits.memory and .resources.limits.cpu))",
+        "hasPrivileged": ".body.data.spec.template.spec.containers | [.[].securityContext.privileged] | any",
+        "isHealthy": "if .body.data.spec.replicas == .body.data.status.availableReplicas then \"Healthy\" else \"Unhealthy\" end"
+      },
+      "relations": {
+        "Namespace": ".body.data.metadata.namespace + \"-\" + .body.clusterName"
+      }
+    }
+  },
+
+  {
+    "blueprint": "dhh_workload",
+    "operation": "delete",
+    "filter": ".body.action == \"delete\" and .body.resourceType == \"apps/v1/statefulsets\"",
+    "entity": {
+      "identifier": ".body.name + \"-StatefulSet-\" + .body.namespace + \"-\" + .body.clusterName"
+    }
+  },
+
+  {
+    "blueprint": "dhh_replicaSet",
+    "operation": "create",
+    "filter": ".body.action == \"upsert\" and .body.resourceType == \"apps/v1/replicasets\" and (.body.data.metadata.namespace | startswith(\"kube-\") | not)",
+    "entity": {
+      "identifier": ".body.data.metadata.name + \"-ReplicaSet-\" + .body.data.metadata.namespace + \"-\" + .body.clusterName",
+      "title": ".body.data.metadata.name",
+      "properties": {
+        "creationTimestamp": ".body.data.metadata.creationTimestamp",
+        "labels": ".body.data.metadata.labels",
+        "replicas": ".body.data.spec.replicas",
+        "availableReplicas": ".body.data.status.availableReplicas",
+        "containers": ".body.data.spec.template.spec.containers | map({name, image, resources})",
+        "strategy": ".body.data.spec.strategy.type // \"\"",
+        "hasLatest": ".body.data.spec.template.spec.containers[].image | contains(\":latest\")",
+        "hasLimits": ".body.data.spec.template.spec.containers | all(has(\"resources\") and (.resources.limits.memory and .resources.limits.cpu))",
+        "hasPrivileged": ".body.data.spec.template.spec.containers | [.[].securityContext.privileged] | any",
+        "isHealthy": "if .body.data.spec.replicas == .body.data.status.availableReplicas then \"Healthy\" else \"Unhealthy\" end"
+      },
+      "relations": {
+        "replicaSetManager": ".body.data.metadata.ownerReferences[0].name + \"-\" + .body.data.metadata.ownerReferences[0].kind + \"-\" + .body.data.metadata.namespace + \"-\" + .body.clusterName"
+      }
+    }
+  },
+
+  {
+    "blueprint": "dhh_replicaSet",
+    "operation": "delete",
+    "filter": ".body.action == \"delete\" and .body.resourceType == \"apps/v1/replicasets\"",
+    "entity": {
+      "identifier": ".body.name + \"-ReplicaSet-\" + .body.namespace + \"-\" + .body.clusterName"
+    }
+  },
+
+  {
+    "blueprint": "dhh_pod",
+    "operation": "create",
+    "filter": ".body.action == \"upsert\" and .body.resourceType == \"v1/pods\" and .body.data.metadata.ownerReferences[0].kind == \"ReplicaSet\" and (.body.data.metadata.namespace | startswith(\"kube-\") | not)",
+    "entity": {
+      "identifier": ".body.data.metadata.name + \"-\" + .body.data.metadata.namespace + \"-\" + .body.clusterName",
+      "title": ".body.data.metadata.name",
+      "properties": {
+        "startTime": ".body.data.status.startTime",
+        "phase": ".body.data.status.phase",
+        "labels": ".body.data.metadata.labels",
+        "containers": "(.body.data.spec.containers | map({image, resources})) + .body.data.status.containerStatuses | group_by(.image) | map(add)"
+      },
+      "relations": {
+        "replicaSet": ".body.data.metadata.ownerReferences[0].name + \"-ReplicaSet-\" + .body.data.metadata.namespace + \"-\" + .body.clusterName",
+        "Node": "if .body.data.spec.nodeName then ((.body.data.spec.nodeName | split(\".\") | join(\"_\")) + \"-\" + .body.clusterName) else null end",
+        "Namespace": ".body.data.metadata.namespace + \"-\" + .body.clusterName"
+      }
+    }
+  },
+
+  {
+    "blueprint": "dhh_pod",
+    "operation": "create",
+    "filter": ".body.action == \"upsert\" and .body.resourceType == \"v1/pods\" and .body.data.metadata.ownerReferences[0].kind != \"ReplicaSet\" and (.body.data.metadata.namespace | startswith(\"kube-\") | not)",
+    "entity": {
+      "identifier": ".body.data.metadata.name + \"-\" + .body.data.metadata.namespace + \"-\" + .body.clusterName",
+      "title": ".body.data.metadata.name",
+      "properties": {
+        "startTime": ".body.data.status.startTime",
+        "phase": ".body.data.status.phase",
+        "labels": ".body.data.metadata.labels",
+        "containers": "(.body.data.spec.containers | map({image, resources})) + .body.data.status.containerStatuses | group_by(.image) | map(add)"
+      },
+      "relations": {
+        "workload": ".body.data.metadata.ownerReferences[0].name + \"-\" + .body.data.metadata.ownerReferences[0].kind + \"-\" + .body.data.metadata.namespace + \"-\" + .body.clusterName",
+        "Node": "if .body.data.spec.nodeName then ((.body.data.spec.nodeName | split(\".\") | join(\"_\")) + \"-\" + .body.clusterName) else null end",
+        "Namespace": ".body.data.metadata.namespace + \"-\" + .body.clusterName"
+      }
+    }
+  },
+
+  {
+    "blueprint": "dhh_pod",
+    "operation": "create",
+    "filter": ".body.action == \"upsert\" and .body.resourceType == \"v1/pods\" and (.body.data.metadata.ownerReferences | length == 0) and (.body.data.metadata.namespace | startswith(\"kube-\") | not)",
+    "entity": {
+      "identifier": ".body.data.metadata.name + \"-\" + .body.data.metadata.namespace + \"-\" + .body.clusterName",
+      "title": ".body.data.metadata.name",
+      "properties": {
+        "startTime": ".body.data.status.startTime",
+        "phase": ".body.data.status.phase",
+        "labels": ".body.data.metadata.labels",
+        "containers": "(.body.data.spec.containers | map({image, resources})) + .body.data.status.containerStatuses | group_by(.image) | map(add)"
+      },
+      "relations": {
+        "Node": "if .body.data.spec.nodeName then ((.body.data.spec.nodeName | split(\".\") | join(\"_\")) + \"-\" + .body.clusterName) else null end",
+        "Namespace": ".body.data.metadata.namespace + \"-\" + .body.clusterName"
+      }
+    }
+  },
+
+  {
+    "blueprint": "dhh_pod",
+    "operation": "delete",
+    "filter": ".body.action == \"delete\" and .body.resourceType == \"v1/pods\"",
+    "entity": {
+      "identifier": ".body.name + \"-\" + .body.namespace + \"-\" + .body.clusterName"
+    }
+  },
+
+  {
+    "blueprint": "dhh_configMap",
+    "operation": "create",
+    "filter": ".body.action == \"upsert\" and .body.resourceType == \"v1/configmaps\" and (.body.data.metadata.namespace | startswith(\"kube-\") | not) and (.body.data.metadata.name | startswith(\"kube-\") | not)",
+    "entity": {
+      "identifier": ".body.data.metadata.name + \"-\" + .body.data.metadata.namespace + \"-\" + .body.clusterName",
+      "title": ".body.data.metadata.name",
+      "properties": {
+        "namespace": ".body.data.metadata.namespace",
+        "data": ".body.data.data",
+        "labels": ".body.data.metadata.labels",
+        "creationTimestamp": ".body.data.metadata.creationTimestamp"
+      },
+      "relations": {
+        "Namespace": ".body.data.metadata.namespace + \"-\" + .body.clusterName"
+      }
+    }
+  },
+
+  {
+    "blueprint": "dhh_configMap",
+    "operation": "delete",
+    "filter": ".body.action == \"delete\" and .body.resourceType == \"v1/configmaps\" and (.body.name | startswith(\"kube-\") | not)",
+    "entity": {
+      "identifier": ".body.name + \"-\" + .body.namespace + \"-\" + .body.clusterName"
+    }
+  }
+]

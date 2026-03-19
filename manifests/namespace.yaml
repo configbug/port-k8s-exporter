@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: port-k8s-exporter
+  labels:
+    app.kubernetes.io/name: port-k8s-exporter
+    app.kubernetes.io/component: monitoring

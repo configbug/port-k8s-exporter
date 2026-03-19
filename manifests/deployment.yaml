@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: port-k8s-exporter
+  namespace: port-k8s-exporter
+  labels:
+    app.kubernetes.io/name: port-k8s-exporter
+    app.kubernetes.io/component: exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: port-k8s-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: port-k8s-exporter
+    spec:
+      serviceAccountName: port-k8s-exporter
+      
+      # Restart policy is Always by default for Deployments
+      # This ensures the exporter keeps running even after cluster restarts
+      
+      containers:
+        - name: exporter
+          image: ghcr.io/configbug/port-k8s-exporter:v0.1.9
+          imagePullPolicy: Always
+          
+          # Configuration via environment variables
+          # The exporter automatically reads WEBHOOK_URL, STATE_KEY, etc.
+          # (converts flag names like --webhook-url to WEBHOOK_URL env var)
+          
+          env:
+            # Event listener type
+            - name: EVENT_LISTENER_TYPE
+              value: "WEBHOOK"
+            
+            # Config file path
+            - name: CONFIG
+              value: "/config/config.yaml"
+
+            # Cluster name - MUST be set explicitly for in-cluster mode
+            - name: CLUSTER_NAME
+              value: "docker-desktop"
+            
+            # Cluster identifier - uses namespace name as state key
+            - name: STATE_KEY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            
+            # Resync interval in minutes
+            - name: RESYNC_INTERVAL
+              value: "5"
+            
+            # Webhook URL from ConfigMap
+            - name: WEBHOOK_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: port-k8s-exporter-config
+                  key: WEBHOOK_URL
+          
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+          
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          
+          # Note: Health probes can be enabled once /healthz and /readyz
+          # endpoints are implemented in the exporter.
+          # livenessProbe:
+          #   httpGet:
+          #     path: /healthz
+          #     port: 8080
+          #   initialDelaySeconds: 10
+          #   periodSeconds: 30
+          # readinessProbe:
+          #   httpGet:
+          #     path: /readyz
+          #     port: 8080
+          #   initialDelaySeconds: 5
+          #   periodSeconds: 10
+      
+      volumes:
+        - name: config
+          configMap:
+            name: port-k8s-exporter-config
+      
+      # Prefer scheduling on different nodes for HA (if multiple replicas)
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: port-k8s-exporter
+                topologyKey: kubernetes.io/hostname
